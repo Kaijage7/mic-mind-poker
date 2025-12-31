@@ -623,6 +623,12 @@ input[type="text"]::placeholder {
     color: var(--primary-color);
 }
 
+.game-title-small {
+    color: var(--primary-color);
+    font-weight: 600;
+    font-size: 1.1em;
+}
+
 .top-actions {
     display: flex;
     gap: 10px;

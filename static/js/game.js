@@ -754,8 +754,6 @@ function updateGameUI(state) {
 }
 
 function updateTopBar(state) {
-    document.getElementById('round-num').textContent = state.round_number || 1;
-
     const directionIndicator = document.getElementById('direction-indicator');
     if (state.direction === 1) {
         directionIndicator.innerHTML = '&#8635; Clockwise';
