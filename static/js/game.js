@@ -573,7 +573,7 @@ function toggleSound() {
 }
 
 function showHelp() {
-    showNotification('COMBOS: Ctrl+click or [C] key! Jack+any, Joker+2, same rank. Keys: [A]=same rank, [C]=combo, [D]=draw, [L]=last card, [ESC]=clear. Special: A=suit, 2=+2, 7/8=reverse, J=free throw, Joker=+6', 'info');
+    showNotification('COMBOS: Ctrl+click or [C] key! Jack+any, Joker+2, same rank. Keys: [A]=same rank, [C]=combo, [D]=draw, [L]=last card, [ESC]=clear. Special: A=suit, 2=+2, 7/8=reverse, J=free throw, Joker=+5', 'info');
 }
 
 // Socket Event Handlers

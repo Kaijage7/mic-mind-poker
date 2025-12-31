@@ -25,7 +25,7 @@ class LastCardGame:
       - 2: Next player draws 2 cards (stackable)
       - 8: Skip next player
       - Jack: Free throw (play another card), can be played on any card
-      - Joker: Wild + next player draws 6 cards + change suit
+      - Joker: Wild + next player draws 5 cards + change suit
     - First to empty hand wins
     - Must call "Last Card" when at 1 card (penalty: draw 1)
     - Last Card cannot be a special card (A, 2, 8, J, Joker)
@@ -388,8 +388,8 @@ class LastCardGame:
         joker_count = sum(1 for c in cards if c.rank == 'Joker')
         two_count = sum(1 for c in cards if c.rank == '2')
 
-        # Calculate total draw: 6 per Joker + 2 per Two
-        total_draw = (joker_count * 6) + (two_count * 2)
+        # Calculate total draw: 5 per Joker + 2 per Two
+        total_draw = (joker_count * 5) + (two_count * 2)
         self.pending_draw += total_draw
 
         # Apply suit override from Joker
@@ -549,14 +549,14 @@ class LastCardGame:
     def _apply_special_effects(self, card: Card, suit_override: Optional[str] = None):
         """Apply special card effects according to official Last Card rules."""
 
-        # Joker - Wild + next player draws 6 + change suit
+        # Joker - Wild + next player draws 5 + change suit
         if card.rank == 'Joker':
             if suit_override and suit_override in ['hearts', 'diamonds', 'clubs', 'spades']:
                 self.current_suit = suit_override
                 self._log_action(f"Joker! Suit changed to {suit_override}")
             else:
                 self.current_suit = 'hearts'  # Default suit for Joker
-            self.pending_draw += 6
+            self.pending_draw += 5
             self._log_action(f"Next player must draw {self.pending_draw} cards!")
             return  # Joker effect complete
 
