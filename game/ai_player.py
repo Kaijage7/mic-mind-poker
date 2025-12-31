@@ -26,16 +26,26 @@ class AIPlayer(Player):
         if not valid_actions:
             return ("draw_card", None, None)
 
+        pending_seven = game_state.get("pending_seven", False)
+
         # First, check if we should call Last Card
         if len(self.hand) == 2 and not self.last_card_called and 'call_last_card' in valid_actions:
             # AI should call last card before playing
             return ("call_last_card", None, None)
 
-        # If we must draw due to 2s, draw unless we have a 2
+        # If we must draw due to 2s/Joker, draw unless we have a 2
         if pending_draw > 0:
             twos = [i for i in playable_cards if self.hand[i].rank == '2']
             if twos:
                 return self._play_card(twos[0], game_state)
+            else:
+                return ("draw_card", None, None)
+
+        # If we must play a 7 or draw
+        if pending_seven:
+            sevens = [i for i in playable_cards if self.hand[i].rank == '7']
+            if sevens:
+                return self._play_card(sevens[0], game_state)
             else:
                 return ("draw_card", None, None)
 
@@ -56,10 +66,12 @@ class AIPlayer(Player):
 
         # Categorize cards
         special_cards = {
-            '2': [],   # Draw 2 - offensive
-            'J': [],   # Skip - offensive
-            'A': [],   # Reverse
-            '8': [],   # Wild - save for emergencies
+            'Joker': [],  # Wild + draw 5 - most powerful
+            '2': [],      # Draw 2 - offensive
+            '7': [],      # Seven - forces 7 or draw 1
+            'J': [],      # Skip - offensive
+            'A': [],      # Reverse
+            '8': [],      # Wild - save for emergencies
         }
         normal_cards = []
 
@@ -85,18 +97,22 @@ class AIPlayer(Player):
             if normal_cards:
                 return random.choice(normal_cards)
             # Play offensive cards
-            for rank in ['2', 'J', 'A']:
+            for rank in ['7', '2', 'J', 'A']:
                 if special_cards[rank]:
                     return special_cards[rank][0]
 
-        # Play offensive cards (2s, Jacks) when others have few cards
+        # Play offensive cards (2s, Jacks, 7s, Jokers) when others have few cards
         players = game_state.get('players', [])
         opponent_low_cards = any(p['card_count'] <= 3 for p in players if p['name'] != self.name)
 
         if opponent_low_cards:
-            # Attack with 2s or skips
+            # Attack with Joker (most powerful), 2s, 7s, or skips
+            if special_cards['Joker']:
+                return special_cards['Joker'][0]
             if special_cards['2']:
                 return special_cards['2'][0]
+            if special_cards['7']:
+                return special_cards['7'][0]
             if special_cards['J']:
                 return special_cards['J'][0]
 
@@ -104,14 +120,16 @@ class AIPlayer(Player):
         if normal_cards:
             return random.choice(normal_cards)
 
-        # Play reverses/skips
-        for rank in ['A', 'J', '2']:
+        # Play non-wild specials first
+        for rank in ['7', 'A', 'J', '2']:
             if special_cards[rank]:
                 return special_cards[rank][0]
 
-        # Last resort: play wild 8
+        # Last resort: play wild 8 or Joker
         if special_cards['8']:
             return special_cards['8'][0]
+        if special_cards['Joker']:
+            return special_cards['Joker'][0]
 
         # Fallback
         return random.choice([i for cards in special_cards.values() for i in cards] + normal_cards)
@@ -122,10 +140,11 @@ class AIPlayer(Player):
         players = game_state.get('players', [])
         current_suit = game_state.get('current_suit', '')
 
-        # Count suits in hand
+        # Count suits in hand (exclude Jokers which have no meaningful suit)
         suit_counts = {}
         for card in self.hand:
-            suit_counts[card.suit] = suit_counts.get(card.suit, 0) + 1
+            if card.rank != 'Joker':
+                suit_counts[card.suit] = suit_counts.get(card.suit, 0) + 1
 
         # Find most common suit
         most_common_suit = max(suit_counts.keys(), key=lambda s: suit_counts[s]) if suit_counts else None
@@ -137,10 +156,15 @@ class AIPlayer(Player):
         next_player = players[next_index] if players else None
         next_has_few = next_player and next_player['card_count'] <= 2
 
-        # If next player has few cards, attack!
+        # If next player has few cards, attack aggressively!
         if next_has_few:
+            # Use Joker for maximum damage
+            if special_cards['Joker']:
+                return special_cards['Joker'][0]
             if special_cards['2']:
                 return special_cards['2'][0]
+            if special_cards['7']:
+                return special_cards['7'][0]
             if special_cards['J']:
                 return special_cards['J'][0]
 
@@ -166,13 +190,15 @@ class AIPlayer(Player):
             return random.choice(normal_cards)
 
         # Play non-wild specials
-        for rank in ['A', 'J', '2']:
+        for rank in ['7', 'A', 'J', '2']:
             if special_cards[rank]:
                 return special_cards[rank][0]
 
-        # Last resort: wild
+        # Last resort: wild 8 or Joker
         if special_cards['8']:
             return special_cards['8'][0]
+        if special_cards['Joker']:
+            return special_cards['Joker'][0]
 
         return normal_cards[0] if normal_cards else list(special_cards.values())[0][0]
 
@@ -180,18 +206,19 @@ class AIPlayer(Player):
         """Return play action with optional suit override for wilds."""
         card = self.hand[card_index]
 
-        # If playing a wild 8, choose the suit we have most of
-        if card.rank == '8':
+        # If playing a wild 8 or Joker, choose the suit we have most of
+        if card.rank == '8' or card.rank == 'Joker':
             suit_override = self._choose_wild_suit()
             return ("play_card", card_index, suit_override)
 
         return ("play_card", card_index, None)
 
     def _choose_wild_suit(self) -> str:
-        """Choose suit for wild 8 - pick the one we have most of."""
+        """Choose suit for wild card - pick the one we have most of."""
         suit_counts = {}
         for card in self.hand:
-            if card.rank != '8':  # Don't count other wilds
+            # Don't count other wilds (8s and Jokers)
+            if card.rank != '8' and card.rank != 'Joker':
                 suit_counts[card.suit] = suit_counts.get(card.suit, 0) + 1
 
         if suit_counts:

@@ -4,14 +4,16 @@ const SUIT_SYMBOLS = {
     'hearts': '\u2665',
     'diamonds': '\u2666',
     'clubs': '\u2663',
-    'spades': '\u2660'
+    'spades': '\u2660',
+    'joker': '\u2605'  // Star symbol for Joker
 };
 
 const SUIT_COLORS = {
     'hearts': '#e74c3c',
     'diamonds': '#e74c3c',
     'clubs': '#2c3e50',
-    'spades': '#2c3e50'
+    'spades': '#2c3e50',
+    'joker': '#9b59b6'  // Purple for Joker
 };
 
 const AVATAR_ICONS = {
@@ -412,8 +414,8 @@ function playSelectedCard() {
         return;
     }
 
-    // If it's a wild 8, show suit selector
-    if (card.rank === '8') {
+    // If it's a wild card (8 or Joker), show suit selector
+    if (card.rank === '8' || card.rank === 'Joker') {
         showSuitSelector();
         return;
     }
@@ -511,7 +513,7 @@ function toggleSound() {
 }
 
 function showHelp() {
-    showNotification('Match rank OR suit. 8=Wild, 2=Draw 2, A=Reverse, J=Skip. Call Last Card when you have 2 cards!', 'info');
+    showNotification('Match rank OR suit. Joker=Wild+Draw5, 8=Wild, 2=Draw2, 7=Play7orDraw1, A=Reverse, J=Skip. Call Last Card before your final card!', 'info');
 }
 
 // Socket Event Handlers
@@ -678,7 +680,13 @@ function handleGameStarted(state) {
 }
 
 function handleCardPlayed(data) {
-    showNotification(`${data.player_name} played ${data.card.rank}${SUIT_SYMBOLS[data.card.suit]}`, 'info');
+    let cardDisplay;
+    if (data.card.rank === 'Joker') {
+        cardDisplay = 'Joker\u2605';
+    } else {
+        cardDisplay = `${data.card.rank}${SUIT_SYMBOLS[data.card.suit]}`;
+    }
+    showNotification(`${data.player_name} played ${cardDisplay}`, 'info');
     SoundManager.play('card_play');
 }
 
@@ -789,11 +797,20 @@ function updateDiscardPile(state) {
         const oldCard = discardCard.dataset.card;
         const newCard = `${card.rank}-${card.suit}`;
 
-        discardCard.className = `card ${card.suit}`;
-        discardCard.innerHTML = `
-            <span class="rank">${card.rank}</span>
-            <span class="suit">${SUIT_SYMBOLS[card.suit]}</span>
-        `;
+        // Handle Joker display
+        if (card.rank === 'Joker') {
+            discardCard.className = 'card joker';
+            discardCard.innerHTML = `
+                <span class="rank">&#9733;</span>
+                <span class="suit">JOKER</span>
+            `;
+        } else {
+            discardCard.className = `card ${card.suit}`;
+            discardCard.innerHTML = `
+                <span class="rank">${card.rank}</span>
+                <span class="suit">${SUIT_SYMBOLS[card.suit]}</span>
+            `;
+        }
 
         // Trigger animation if card changed
         if (oldCard !== newCard) {
@@ -803,7 +820,7 @@ function updateDiscardPile(state) {
         }
     }
 
-    // Show current suit indicator (especially for wild 8s)
+    // Show current suit indicator (especially for wild 8s and Jokers)
     if (state.current_suit) {
         suitIndicator.innerHTML = `<span class="suit-${state.current_suit}">${SUIT_SYMBOLS[state.current_suit]}</span>`;
         suitIndicator.style.color = SUIT_COLORS[state.current_suit];
@@ -1035,12 +1052,23 @@ function showGameOver(state) {
 // Card Element Creation
 function createCardElement(card, index = 0) {
     const el = document.createElement('div');
-    el.className = `card ${card.suit}`;
-    el.dataset.index = index;
-    el.innerHTML = `
-        <span class="rank">${card.rank}</span>
-        <span class="suit">${SUIT_SYMBOLS[card.suit]}</span>
-    `;
+
+    // Handle Joker cards specially
+    if (card.rank === 'Joker') {
+        el.className = 'card joker';
+        el.dataset.index = index;
+        el.innerHTML = `
+            <span class="rank">&#9733;</span>
+            <span class="suit">JOKER</span>
+        `;
+    } else {
+        el.className = `card ${card.suit}`;
+        el.dataset.index = index;
+        el.innerHTML = `
+            <span class="rank">${card.rank}</span>
+            <span class="suit">${SUIT_SYMBOLS[card.suit]}</span>
+        `;
+    }
     return el;
 }
 

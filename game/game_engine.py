@@ -18,14 +18,20 @@ class LastCardGame:
     Last Card / Crazy Eights game implementation.
 
     Rules:
-    - Each player gets 7 cards
+    - Each player gets 5 cards
     - Match rank OR suit to play a card
-    - Special cards: 8 (wild), 2 (draw 2), Ace (reverse), Jack (skip)
+    - Special cards:
+      - 8 (wild): Can be played anytime, player chooses next suit
+      - 2: Next player draws 2 cards and skips turn (stackable)
+      - 7: Next player must play a 7 or draw 1 card
+      - Ace: Reverses play direction
+      - Jack: Skips next player
+      - Joker: Wild + next player draws 5 cards
     - First to empty hand wins
-    - Must call "Last Card" when at 1 card
+    - Must call "Last Card" when at 1 card (penalty: draw 1)
     """
 
-    CARDS_PER_PLAYER = 7
+    CARDS_PER_PLAYER = 5
     MAX_PLAYERS = 8
 
     def __init__(self):
@@ -35,8 +41,9 @@ class LastCardGame:
         self.phase = GamePhase.WAITING
         self.current_player_index = 0
         self.direction = 1  # 1 = clockwise, -1 = counter-clockwise
-        self.pending_draw = 0  # Stacked draw 2s
-        self.current_suit: Optional[str] = None  # Override suit from wild 8
+        self.pending_draw = 0  # Stacked draw 2s or Joker
+        self.pending_seven = False  # Must play 7 or draw 1
+        self.current_suit: Optional[str] = None  # Override suit from wild 8/Joker
         self.winner: Optional[str] = None
         self.action_log: List[str] = []
         self.round_number = 0
@@ -72,6 +79,7 @@ class LastCardGame:
         self.round_number += 1
         self.winner = None
         self.pending_draw = 0
+        self.pending_seven = False
         self.direction = 1
         self.current_suit = None
         self.action_log = []
@@ -95,8 +103,8 @@ class LastCardGame:
 
         # Flip first card to discard pile
         first_card = self.deck.deal_one()
-        while first_card and first_card.rank == '8':
-            # Don't start with a wild card, put it back and draw another
+        while first_card and (first_card.rank == '8' or first_card.rank == 'Joker'):
+            # Don't start with a wild card (8 or Joker), put it back and draw another
             self.deck.cards.insert(0, first_card)
             self.deck.shuffle()
             first_card = self.deck.deal_one()
@@ -132,13 +140,17 @@ class LastCardGame:
 
     def is_valid_play(self, card: Card) -> bool:
         """Check if a card can be played."""
-        # 8s (wilds) can always be played
-        if card.rank == '8':
+        # Jokers and 8s (wilds) can always be played
+        if card.rank == 'Joker' or card.rank == '8':
             return True
 
-        # If there are pending draws from 2s, only a 2 can be played
+        # If there are pending draws from 2s, only a 2 can be played (stacking)
         if self.pending_draw > 0:
             return card.rank == '2'
+
+        # If there's a pending 7, only a 7 can be played
+        if self.pending_seven:
+            return card.rank == '7'
 
         top_card = self.get_top_card()
         if not top_card:
@@ -185,19 +197,19 @@ class LastCardGame:
         if not self.is_valid_play(card):
             return False, f"Cannot play {card}. Must match {self.get_active_suit()} or {self.get_top_card().rank}"
 
-        # Check if player should have called Last Card
-        if len(player.hand) == 2 and not player.last_card_called:
-            # Penalty: draw 2 cards
-            self._draw_cards(player, 2)
-            self._log_action(f"{player_name} forgot to call Last Card! Drew 2 penalty cards.")
-            player.last_card_called = False
-
         # Remove card from hand and add to discard pile
         player.hand.pop(card_index)
         self.discard_pile.append(card)
         self.last_played_by = player_name
 
-        # Reset last card called after playing
+        # Check if player should have called Last Card (now has 1 card)
+        if len(player.hand) == 1 and not player.last_card_called:
+            # Penalty: draw 1 card
+            self._draw_cards(player, 1)
+            self._log_action(f"{player_name} forgot to call Last Card! Drew 1 penalty card.")
+            player.last_card_called = False
+
+        # Reset last card called after playing (if more than 1 card left)
         if len(player.hand) > 1:
             player.last_card_called = False
 
@@ -233,14 +245,22 @@ class LastCardGame:
         if not current or current.name != player_name:
             return False, "Not your turn"
 
-        # If there are pending draws, must draw all of them
-        draw_count = max(1, self.pending_draw)
+        # Determine draw count
+        if self.pending_draw > 0:
+            draw_count = self.pending_draw
+        elif self.pending_seven:
+            draw_count = 1  # Seven only makes you draw 1
+        else:
+            draw_count = 1
 
         cards_drawn = self._draw_cards(player, draw_count)
 
         if self.pending_draw > 0:
-            self._log_action(f"{player_name} drew {cards_drawn} cards (from 2s)")
+            self._log_action(f"{player_name} drew {cards_drawn} cards (from 2s/Joker)")
             self.pending_draw = 0
+        elif self.pending_seven:
+            self._log_action(f"{player_name} drew 1 card (from 7)")
+            self.pending_seven = False
         else:
             self._log_action(f"{player_name} drew a card")
 
@@ -255,6 +275,7 @@ class LastCardGame:
     def call_last_card(self, player_name: str) -> Tuple[bool, str]:
         """
         Call "Last Card!" when player has 2 cards (before playing to get to 1).
+        Must be called BEFORE playing the card that leaves you with 1 card.
 
         Returns:
             Tuple of (success, message)
@@ -263,8 +284,11 @@ class LastCardGame:
         if not player:
             return False, "Player not found"
 
-        if len(player.hand) != 2:
+        if len(player.hand) > 2:
             return False, "Can only call Last Card when you have 2 cards"
+
+        if len(player.hand) < 2:
+            return False, "Too late to call Last Card"
 
         if player.last_card_called:
             return False, "Already called Last Card"
@@ -277,6 +301,20 @@ class LastCardGame:
     def _apply_special_effects(self, card: Card, suit_override: Optional[str] = None):
         """Apply special card effects."""
 
+        # Clear pending seven when any card is played
+        self.pending_seven = False
+
+        # Joker - Wild + next player draws 5
+        if card.rank == 'Joker':
+            if suit_override and suit_override in ['hearts', 'diamonds', 'clubs', 'spades']:
+                self.current_suit = suit_override
+                self._log_action(f"Joker! Suit changed to {suit_override}")
+            else:
+                self.current_suit = 'hearts'  # Default suit for Joker
+            self.pending_draw += 5
+            self._log_action(f"Next player must draw {self.pending_draw} cards!")
+            return  # Joker doesn't stack with other effects
+
         # Wild 8 - player chooses next suit
         if card.rank == '8':
             if suit_override and suit_override in ['hearts', 'diamonds', 'clubs', 'spades']:
@@ -287,10 +325,15 @@ class LastCardGame:
         else:
             self.current_suit = card.suit
 
-        # Draw 2
+        # Draw 2 (stackable)
         if card.rank == '2':
             self.pending_draw += 2
             self._log_action(f"Next player must draw {self.pending_draw} or play a 2")
+
+        # Seven - next player must play 7 or draw 1
+        if card.rank == '7':
+            self.pending_seven = True
+            self._log_action(f"Next player must play a 7 or draw 1 card")
 
         # Reverse (Ace)
         if card.rank == 'A':
@@ -420,6 +463,7 @@ class LastCardGame:
             'draw_pile_count': len(self.deck.cards),
             'direction': self.direction,
             'pending_draw': self.pending_draw,
+            'pending_seven': self.pending_seven,
             'current_player': current_player.name if current_player else None,
             'players': players_data,
             'winner': self.winner,

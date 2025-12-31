@@ -1025,6 +1025,20 @@ input[type="text"]::placeholder {
 
 .card.hearts, .card.diamonds { color: #d63031; }
 .card.clubs, .card.spades { color: #2d3436; }
+.card.joker {
+    color: #9b59b6;
+    background: linear-gradient(135deg, #f39c12, #e74c3c, #9b59b6, #3498db);
+    background-size: 400% 400%;
+    animation: jokerShine 3s ease infinite;
+}
+.card.joker .rank { font-size: 1.5em; }
+.card.joker .suit { font-size: 0.7em; font-weight: bold; }
+
+@keyframes jokerShine {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
 
 .card .rank {
     font-size: 1.3em;

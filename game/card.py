@@ -4,9 +4,11 @@ from typing import List
 
 
 SUITS = ['hearts', 'diamonds', 'clubs', 'spades']
-SUIT_SYMBOLS = {'hearts': '\u2665', 'diamonds': '\u2666', 'clubs': '\u2663', 'spades': '\u2660'}
+SUIT_SYMBOLS = {'hearts': '\u2665', 'diamonds': '\u2666', 'clubs': '\u2663', 'spades': '\u2660', 'joker': '\u2605'}
 RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
+SPECIAL_RANKS = ['Joker']  # Jokers are special cards
 RANK_VALUES = {rank: i for i, rank in enumerate(RANKS, 2)}
+RANK_VALUES['Joker'] = 15  # Joker has highest value
 
 
 @dataclass
@@ -20,9 +22,17 @@ class Card:
 
     @property
     def symbol(self) -> str:
+        if self.rank == 'Joker':
+            return SUIT_SYMBOLS['joker']
         return SUIT_SYMBOLS[self.suit]
 
+    @property
+    def is_joker(self) -> bool:
+        return self.rank == 'Joker'
+
     def __str__(self) -> str:
+        if self.rank == 'Joker':
+            return f"Joker{self.symbol}"
         return f"{self.rank}{self.symbol}"
 
     def __repr__(self) -> str:
@@ -53,8 +63,13 @@ class Deck:
         self.cards: List[Card] = []
         self.reset()
 
-    def reset(self) -> None:
+    def reset(self, include_jokers: bool = True) -> None:
+        """Reset deck with all cards. Optionally includes 2 Jokers."""
         self.cards = [Card(rank, suit) for suit in SUITS for rank in RANKS]
+        if include_jokers:
+            # Add 2 Jokers (one red, one black conceptually)
+            self.cards.append(Card('Joker', 'hearts'))  # Red Joker
+            self.cards.append(Card('Joker', 'spades'))  # Black Joker
         self.shuffle()
 
     def shuffle(self) -> None:
