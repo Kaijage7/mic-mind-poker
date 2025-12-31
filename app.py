@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room
+import os
 import time
 import json
 import random
@@ -667,8 +668,10 @@ def check_and_execute_ai_turn(room_id: str, game: PokerGame):
 
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('DEBUG', 'True').lower() == 'true'
     print("\n" + "="*50)
     print("  MIC MIND - PREMIUM POKER SERVER")
-    print("  Open http://localhost:5000 in your browser")
+    print(f"  Running on port {port}")
     print("="*50 + "\n")
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=port, debug=debug)
