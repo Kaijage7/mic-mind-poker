@@ -413,6 +413,11 @@ def handle_emoji(data):
 
 def broadcast_game_state(room_id: str, game: LastCardGame):
     """Broadcast personalized game state to each player."""
+    # First send a general update to the room for non-personalized data
+    base_state = game.get_game_state()
+    add_host_info_to_state(base_state, room_id)
+
+    # Then send personalized state to each human player
     for player in game.players:
         if player.is_human:
             socket_id = player_to_socket.get(room_id, {}).get(player.name)
@@ -420,7 +425,15 @@ def broadcast_game_state(room_id: str, game: LastCardGame):
                 state = game.get_game_state(for_player=player.name)
                 state['your_name'] = player.name
                 state['is_host'] = room_hosts.get(room_id) == player.name
+                add_host_info_to_state(state, room_id)
                 socketio.emit('game_state', state, to=socket_id)
+
+    # Also emit to the entire room for any late joiners or observers
+    socketio.emit('game_update', {
+        'player_count': len(game.players),
+        'phase': game.phase.value,
+        'current_player': game.get_current_player().name if game.get_current_player() else None
+    }, room=room_id)
 
 
 def check_and_execute_ai_turn(room_id: str, game: LastCardGame):

@@ -122,6 +122,7 @@ function initSocket() {
     GameState.socket.on('player_joined', handlePlayerJoined);
     GameState.socket.on('joined_room', handleJoinedRoom);
     GameState.socket.on('game_state', handleGameState);
+    GameState.socket.on('game_update', handleGameUpdate);
     GameState.socket.on('game_started', handleGameStarted);
     GameState.socket.on('card_played', handleCardPlayed);
     GameState.socket.on('card_drawn', handleCardDrawn);
@@ -612,6 +613,15 @@ function handleGameState(state) {
         updateLobbyPlayerListUI(state.players);
     } else {
         updateGameUI(state);
+    }
+}
+
+function handleGameUpdate(data) {
+    // Handle general game updates for synchronization
+    console.log('Game update:', data);
+    // Request fresh state if needed
+    if (GameState.currentState && data.phase !== GameState.currentState.phase) {
+        updateLobbyPlayerList();
     }
 }
 

@@ -661,8 +661,8 @@ input[type="text"]::placeholder {
     max-height: calc(100vh - 160px);
 }
 
-/* Poker Table */
-.poker-table-wrapper {
+/* Game Table */
+.game-table-wrapper {
     flex: 1;
     display: flex;
     align-items: center;
@@ -671,7 +671,7 @@ input[type="text"]::placeholder {
     padding: 20px;
 }
 
-.poker-table {
+.game-table {
     position: relative;
     width: 100%;
     max-width: 650px;
@@ -1983,7 +1983,7 @@ input[type="text"]::placeholder {
 }
 
 @media (max-width: 768px) {
-    .poker-table {
+    .game-table {
         aspect-ratio: 1.6;
     }
 
