@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIC MIND - Premium Poker</title>
+    <title>MIC MIND - Last Card</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
@@ -17,11 +17,11 @@
             <div class="lobby-container">
                 <div class="logo-section">
                     <h1 class="game-title">MIC MIND</h1>
-                    <p class="subtitle">Premium Multiplayer Poker</p>
+                    <p class="subtitle">Last Card / Crazy Eights</p>
                 </div>
 
                 <div class="lobby-section glass-panel" id="join-section">
-                    <h2>Play Poker</h2>
+                    <h2>Play Last Card</h2>
                     <div class="input-group">
                         <input type="text" id="player-name" placeholder="Enter Your Name" maxlength="15">
                         <div class="avatar-selector">
@@ -34,20 +34,6 @@
                                 <div class="avatar-option" data-avatar="player5">&#127775;</div>
                                 <div class="avatar-option" data-avatar="player6">&#128142;</div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div class="game-mode-selector">
-                        <label>Game Mode:</label>
-                        <div class="mode-options">
-                            <button class="mode-btn selected" data-mode="cash_game">
-                                <span class="mode-icon">&#128176;</span>
-                                <span class="mode-name">Cash Game</span>
-                            </button>
-                            <button class="mode-btn" data-mode="tournament">
-                                <span class="mode-icon">&#127942;</span>
-                                <span class="mode-name">Tournament</span>
-                            </button>
                         </div>
                     </div>
 
@@ -82,27 +68,20 @@
                                 <button id="copy-share-link" class="btn btn-small btn-secondary" title="Copy link">&#128279; Copy Link</button>
                             </div>
                         </div>
-                        <div class="invite-instructions">
-                            Share the code or link with friends. They can join directly!
-                        </div>
                     </div>
-
-                    <div id="game-mode-display" class="mode-display"></div>
 
                     <div class="players-section">
                         <h3>Players <span id="player-count-badge">(0/8)</span></h3>
-                        <div class="players-grid" id="players-list">
-                            <!-- Players will be added here -->
-                        </div>
+                        <div class="players-grid" id="players-list"></div>
                     </div>
 
                     <div class="add-ai-section" id="add-ai-section">
                         <h3>Add AI Opponents</h3>
                         <div class="ai-options">
                             <select id="ai-difficulty">
-                                <option value="easy">Easy - Beginner Bot</option>
-                                <option value="medium" selected>Medium - Standard Bot</option>
-                                <option value="hard">Hard - Pro Bot</option>
+                                <option value="easy">Easy Bot</option>
+                                <option value="medium" selected>Medium Bot</option>
+                                <option value="hard">Hard Bot</option>
                             </select>
                             <button id="add-ai-btn" class="btn btn-secondary">
                                 <span>+ Add Bot</span>
@@ -132,29 +111,24 @@
             <!-- Top Bar -->
             <div class="top-bar">
                 <div class="game-info">
-                    <span class="hand-number">Hand #<span id="hand-num">1</span></span>
-                    <span class="blinds-info">Blinds: $<span id="sb-amount">10</span>/$<span id="bb-amount">20</span></span>
-                    <span id="tournament-info" class="tournament-info" style="display: none;">
-                        Level <span id="blind-level">1</span> | Next in <span id="hands-to-blind">10</span> hands
+                    <span class="round-number">Round #<span id="round-num">1</span></span>
+                    <span id="direction-indicator" class="direction-indicator">&#8635; Clockwise</span>
+                    <span id="pending-draw-indicator" class="pending-draw" style="display: none;">
+                        &#9888; Draw <span id="pending-draw-count">0</span> cards!
                     </span>
                 </div>
                 <div class="top-actions">
                     <button id="sound-toggle" class="icon-btn" title="Toggle Sound">&#128266;</button>
-                    <button id="stats-btn" class="icon-btn" title="View Stats">&#128200;</button>
-                    <button id="help-btn" class="icon-btn" title="Get Tip">&#128161;</button>
+                    <button id="help-btn" class="icon-btn" title="Game Rules">&#128161;</button>
                 </div>
             </div>
 
             <!-- Main Game Area -->
             <div class="game-layout">
-                <!-- Poker Table -->
+                <!-- Game Table -->
                 <div class="poker-table-wrapper">
                     <div class="poker-table">
-                        <!-- Table felt pattern -->
                         <div class="table-pattern"></div>
-
-                        <!-- Star decoration in center -->
-                        <div class="star-decoration"></div>
 
                         <!-- Players around table -->
                         <div id="seat-0" class="player-seat seat-0"></div>
@@ -166,68 +140,43 @@
                         <div id="seat-6" class="player-seat seat-6"></div>
                         <div id="seat-7" class="player-seat seat-7"></div>
 
-                        <!-- Center Area -->
+                        <!-- Center Area - Discard & Draw Piles -->
                         <div class="table-center">
-                            <div class="pot-area">
-                                <div class="pot-chips"></div>
-                                <div class="pot-amount">
-                                    <span class="pot-label">POT</span>
-                                    <span class="pot-value">$<span id="pot-amount">0</span></span>
+                            <div class="piles-container">
+                                <div class="draw-pile">
+                                    <div class="pile-label">Draw Pile</div>
+                                    <div class="card card-back">
+                                        <span id="draw-pile-count">52</span>
+                                    </div>
+                                </div>
+                                <div class="discard-pile">
+                                    <div class="pile-label">Discard</div>
+                                    <div id="discard-card" class="card"></div>
+                                    <div id="current-suit-indicator" class="suit-indicator"></div>
                                 </div>
                             </div>
-
-                            <div id="community-cards" class="community-cards"></div>
-
                             <div id="game-phase" class="phase-badge"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Right Panel - Stats & Chat -->
+                <!-- Right Panel -->
                 <div class="side-panel">
                     <!-- Players in Game -->
                     <div class="panel-section glass-panel players-panel">
                         <h3>&#128101; Players</h3>
-                        <div id="game-players-list" class="game-players-list">
-                            <!-- Players will be populated here -->
-                        </div>
+                        <div id="game-players-list" class="game-players-list"></div>
                     </div>
 
-                    <!-- Win Probability -->
-                    <div class="panel-section glass-panel" id="probability-panel">
-                        <h3>Hand Strength</h3>
-                        <div class="probability-display">
-                            <div class="prob-meter">
-                                <div class="prob-fill" id="prob-fill"></div>
-                            </div>
-                            <div class="prob-stats">
-                                <span class="prob-win">Win: <strong id="win-prob">--</strong>%</span>
-                                <span class="prob-label" id="strength-label">--</span>
-                            </div>
-                        </div>
-                        <div class="outs-display" id="outs-display">
-                            <span>Outs: <strong id="outs-count">0</strong></span>
-                            <span id="outs-odds"></span>
-                        </div>
-                        <div class="pot-odds-display" id="pot-odds-display">
-                            <span>Pot Odds: <strong id="pot-odds">--</strong></span>
-                        </div>
-                    </div>
-
-                    <!-- Hand Rankings Guide -->
-                    <div class="panel-section glass-panel hand-rankings-panel">
-                        <h3>&#127183; Hand Rankings</h3>
-                        <div class="rankings-list">
-                            <div class="rank-item"><span class="rank-num">1</span><span class="rank-name">Royal Flush</span><span class="rank-ex">A K Q J 10</span></div>
-                            <div class="rank-item"><span class="rank-num">2</span><span class="rank-name">Straight Flush</span><span class="rank-ex">5 6 7 8 9</span></div>
-                            <div class="rank-item"><span class="rank-num">3</span><span class="rank-name">Four of a Kind</span><span class="rank-ex">K K K K</span></div>
-                            <div class="rank-item"><span class="rank-num">4</span><span class="rank-name">Full House</span><span class="rank-ex">J J J 8 8</span></div>
-                            <div class="rank-item"><span class="rank-num">5</span><span class="rank-name">Flush</span><span class="rank-ex">&#9829; &#9829; &#9829; &#9829; &#9829;</span></div>
-                            <div class="rank-item"><span class="rank-num">6</span><span class="rank-name">Straight</span><span class="rank-ex">3 4 5 6 7</span></div>
-                            <div class="rank-item"><span class="rank-num">7</span><span class="rank-name">Three of a Kind</span><span class="rank-ex">Q Q Q</span></div>
-                            <div class="rank-item"><span class="rank-num">8</span><span class="rank-name">Two Pair</span><span class="rank-ex">9 9 5 5</span></div>
-                            <div class="rank-item"><span class="rank-num">9</span><span class="rank-name">One Pair</span><span class="rank-ex">A A</span></div>
-                            <div class="rank-item"><span class="rank-num">10</span><span class="rank-name">High Card</span><span class="rank-ex">A high</span></div>
+                    <!-- Game Rules -->
+                    <div class="panel-section glass-panel rules-panel">
+                        <h3>&#127183; Game Rules</h3>
+                        <div class="rules-list">
+                            <div class="rule-item"><span class="rule-card">Any</span><span class="rule-desc">Match rank OR suit</span></div>
+                            <div class="rule-item"><span class="rule-card">8</span><span class="rule-desc">Wild - Choose any suit</span></div>
+                            <div class="rule-item"><span class="rule-card">2</span><span class="rule-desc">Next player draws 2</span></div>
+                            <div class="rule-item"><span class="rule-card">A</span><span class="rule-desc">Reverse direction</span></div>
+                            <div class="rule-item"><span class="rule-card">J</span><span class="rule-desc">Skip next player</span></div>
                         </div>
                     </div>
 
@@ -241,14 +190,6 @@
                                 <button class="emoji-btn" data-emoji="&#128078;">&#128078;</button>
                                 <button class="emoji-btn" data-emoji="&#128293;">&#128293;</button>
                                 <button class="emoji-btn" data-emoji="&#128514;">&#128514;</button>
-                                <button class="emoji-btn" data-emoji="&#128557;">&#128557;</button>
-                                <button class="emoji-btn" data-emoji="&#128064;">&#128064;</button>
-                            </div>
-                            <div class="quick-phrases">
-                                <button class="phrase-btn" data-phrase="Good luck!">Good luck!</button>
-                                <button class="phrase-btn" data-phrase="Nice hand!">Nice hand!</button>
-                                <button class="phrase-btn" data-phrase="I'm all in!">All in!</button>
-                                <button class="phrase-btn" data-phrase="Bluffing?">Bluffing?</button>
                             </div>
                             <div class="chat-input-row">
                                 <input type="text" id="chat-input" placeholder="Type message..." maxlength="200">
@@ -269,130 +210,67 @@
             <div class="bottom-area">
                 <!-- My Hand -->
                 <div class="my-hand-section glass-panel">
-                    <div class="my-hand-label">Your Hand</div>
+                    <div class="my-hand-label">Your Hand (<span id="my-card-count">0</span> cards)</div>
                     <div id="my-cards" class="my-cards"></div>
-                    <div id="my-hand-name" class="hand-name"></div>
                 </div>
 
                 <!-- Action Panel -->
                 <div id="action-panel" class="action-panel glass-panel">
                     <div class="action-buttons" id="action-buttons">
-                        <button id="fold-btn" class="action-btn fold-btn">
-                            <span class="btn-icon">&#128683;</span>
-                            <span class="btn-text">Fold</span>
-                            <span class="hotkey">[F]</span>
-                        </button>
-                        <button id="check-btn" class="action-btn check-btn">
-                            <span class="btn-icon">&#10004;</span>
-                            <span class="btn-text">Check</span>
-                            <span class="hotkey">[C]</span>
-                        </button>
-                        <button id="call-btn" class="action-btn call-btn">
-                            <span class="btn-icon">&#128176;</span>
-                            <span class="btn-text">Call</span>
-                            <span class="btn-amount">$<span id="call-amount">0</span></span>
-                            <span class="hotkey">[C]</span>
-                        </button>
-                        <div class="raise-section">
-                            <div class="raise-slider-container">
-                                <input type="range" id="raise-slider" min="0" max="1000" value="0">
-                                <div class="slider-labels">
-                                    <span id="min-raise-label">Min</span>
-                                    <span id="raise-display" class="raise-value">$0</span>
-                                    <span id="max-raise-label">Max</span>
-                                </div>
-                            </div>
-                            <div class="raise-presets">
-                                <button class="preset-btn" data-multiplier="0.5">1/2 Pot</button>
-                                <button class="preset-btn" data-multiplier="0.75">3/4 Pot</button>
-                                <button class="preset-btn" data-multiplier="1">Pot</button>
-                            </div>
-                            <button id="raise-btn" class="action-btn raise-btn">
-                                <span class="btn-icon">&#128200;</span>
-                                <span class="btn-text">Raise</span>
-                                <span class="hotkey">[R]</span>
-                            </button>
-                        </div>
-                        <button id="allin-btn" class="action-btn allin-btn">
+                        <button id="draw-btn" class="action-btn draw-btn">
                             <span class="btn-icon">&#127183;</span>
-                            <span class="btn-text">All In</span>
-                            <span class="btn-amount">$<span id="allin-amount">0</span></span>
-                            <span class="hotkey">[A]</span>
+                            <span class="btn-text">Draw Card</span>
+                            <span class="hotkey">[D]</span>
                         </button>
-                        <button id="surrender-btn" class="action-btn surrender-btn">
-                            <span class="btn-icon">&#127987;</span>
-                            <span class="btn-text">Surrender</span>
-                            <span class="hotkey">[S]</span>
+                        <button id="play-btn" class="action-btn play-btn" disabled>
+                            <span class="btn-icon">&#9654;</span>
+                            <span class="btn-text">Play Card</span>
+                            <span class="hotkey">[Space]</span>
                         </button>
-                    </div>
-
-                    <!-- Challenge Panel -->
-                    <div id="challenge-panel" class="challenge-panel" style="display: none;">
-                        <div class="challenge-info">
-                            <span class="challenge-icon">&#9876;</span>
-                            <span id="challenge-text">Challenge from opponent!</span>
-                        </div>
-                        <div class="challenge-buttons">
-                            <button id="accept-challenge-btn" class="btn btn-success">Accept Challenge</button>
-                            <button id="decline-challenge-btn" class="btn btn-danger">Decline</button>
-                        </div>
+                        <button id="lastcard-btn" class="action-btn lastcard-btn" style="display: none;">
+                            <span class="btn-icon">&#128227;</span>
+                            <span class="btn-text">Last Card!</span>
+                            <span class="hotkey">[L]</span>
+                        </button>
                     </div>
 
                     <div id="waiting-message" class="waiting-message" style="display: none;">
                         <div class="waiting-spinner"></div>
                         <span>Waiting for <strong id="current-player-name"></strong></span>
                     </div>
-
-                    <!-- Timer -->
-                    <div id="turn-timer" class="turn-timer" style="display: none;">
-                        <div class="timer-bar">
-                            <div class="timer-fill" id="timer-fill"></div>
-                        </div>
-                        <span id="timer-text">30s</span>
-                    </div>
                 </div>
 
-                <!-- New Hand / Hand Complete -->
-                <div id="hand-complete-panel" class="hand-complete-panel glass-panel" style="display: none;">
+                <!-- Game Over Panel -->
+                <div id="game-over-panel" class="hand-complete-panel glass-panel" style="display: none;">
                     <div class="winner-announcement">
-                        <div class="confetti-container" id="confetti-container"></div>
                         <div class="winner-trophy">&#127942;</div>
                         <div id="winner-message" class="winner-message"></div>
-                        <div id="winning-hand" class="winning-hand"></div>
-                        <div id="winning-cards" class="winning-cards"></div>
-                        <div id="pot-won" class="pot-won"></div>
                     </div>
-                    <button id="new-hand-btn" class="btn btn-success btn-glow btn-large">
-                        <span>&#127183; Deal New Hand</span>
+                    <button id="new-round-btn" class="btn btn-success btn-glow btn-large">
+                        <span>&#127183; Play Again</span>
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Stats Modal -->
-        <div id="stats-modal" class="modal" style="display: none;">
-            <div class="modal-content glass-panel">
-                <div class="modal-header">
-                    <h2>Player Statistics</h2>
-                    <button class="modal-close" id="close-stats">&times;</button>
+        <!-- Suit Selector Modal -->
+        <div id="suit-modal" class="modal" style="display: none;">
+            <div class="modal-content glass-panel suit-selector">
+                <h3>Choose a Suit</h3>
+                <div class="suit-options">
+                    <button class="suit-btn" data-suit="hearts"><span class="suit-hearts">&#9829;</span> Hearts</button>
+                    <button class="suit-btn" data-suit="diamonds"><span class="suit-diamonds">&#9830;</span> Diamonds</button>
+                    <button class="suit-btn" data-suit="clubs"><span class="suit-clubs">&#9827;</span> Clubs</button>
+                    <button class="suit-btn" data-suit="spades"><span class="suit-spades">&#9824;</span> Spades</button>
                 </div>
-                <div class="modal-body" id="stats-content">
-                    <!-- Stats will be populated here -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Achievement Toast -->
-        <div id="achievement-toast" class="achievement-toast" style="display: none;">
-            <div class="achievement-icon" id="achievement-icon"></div>
-            <div class="achievement-info">
-                <div class="achievement-title" id="achievement-title"></div>
-                <div class="achievement-desc" id="achievement-desc"></div>
             </div>
         </div>
 
         <!-- Floating Emojis Container -->
         <div id="floating-emojis"></div>
+
+        <!-- Notification Toast -->
+        <div id="notification-toast" class="notification-toast" style="display: none;"></div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>

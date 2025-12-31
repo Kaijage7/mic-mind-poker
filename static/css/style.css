@@ -1,4 +1,4 @@
-/* Premium Texas Hold'em Poker Styles */
+/* MIC MIND - Last Card / Crazy Eights Styles */
 :root {
     --primary-color: #ffd700;
     --secondary-color: #c0a000;
@@ -867,46 +867,68 @@ input[type="text"]::placeholder {
     z-index: 5;
 }
 
-.pot-area {
-    margin-bottom: 15px;
+/* Piles Container - Draw and Discard */
+.piles-container {
+    display: flex;
+    gap: 40px;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    background: rgba(30, 30, 50, 0.85);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.pot-amount {
+.draw-pile, .discard-pile {
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: linear-gradient(145deg, #1a1a2e, #16213e);
-    padding: 10px 25px;
-    border-radius: 25px;
-    border: 2px solid rgba(255, 215, 0, 0.3);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    gap: 8px;
 }
 
-.pot-label {
+.pile-label {
     font-size: 0.75em;
     color: rgba(255, 255, 255, 0.7);
     letter-spacing: 2px;
     text-transform: uppercase;
 }
 
-.pot-value {
-    font-size: 1.8em;
-    font-weight: 700;
-    color: var(--primary-color);
-    text-shadow: 0 0 15px rgba(255,215,0,0.4);
+/* Card Back Style */
+.card-back {
+    background: linear-gradient(135deg, #1a1a3e, #3a3a6e) !important;
+    border: 3px solid var(--primary-color) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
 }
 
-/* Community Cards */
-.community-cards {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    min-height: 90px;
-    padding: 10px;
-    background: rgba(30, 30, 50, 0.85);
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+.card-back::before {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    border: 2px solid rgba(255, 215, 0, 0.3);
+    border-radius: 4px;
 }
+
+.card-back span {
+    font-size: 1.4em;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+/* Suit Indicator */
+.suit-indicator {
+    margin-top: 10px;
+    font-size: 2em;
+    padding: 8px 16px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.suit-hearts, .suit-diamonds { color: #e74c3c; }
+.suit-clubs, .suit-spades { color: #ecf0f1; }
 
 .card {
     width: 60px;
@@ -1334,17 +1356,49 @@ input[type="text"]::placeholder {
 .my-cards {
     display: flex;
     gap: 10px;
-    justify-content: center;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding: 10px 5px;
+    max-width: 100%;
 }
 
 .my-cards .card {
-    width: 80px;
-    height: 115px;
-    font-size: 1.1em;
+    width: 70px;
+    height: 100px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
-.my-cards .card .rank { font-size: 1.5em; }
-.my-cards .card .suit { font-size: 2em; }
+.my-cards .card .rank { font-size: 1.4em; }
+.my-cards .card .suit { font-size: 1.8em; }
+
+/* Card Selection States */
+.my-cards .card.playable {
+    border: 2px solid var(--success-color);
+    box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+}
+
+.my-cards .card.playable:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 10px 25px rgba(0, 255, 136, 0.4);
+}
+
+.my-cards .card.selected {
+    transform: translateY(-15px);
+    border: 3px solid var(--primary-color);
+    box-shadow: 0 15px 30px rgba(255, 215, 0, 0.5);
+}
+
+.my-cards .card:not(.playable) {
+    opacity: 0.6;
+    filter: grayscale(0.3);
+}
+
+.my-cards .card:not(.playable):hover {
+    transform: translateY(-3px);
+}
 
 .hand-name {
     margin-top: 10px;
@@ -2008,4 +2062,207 @@ input[type="text"]::placeholder {
 
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255,255,255,0.3);
+}
+
+/* ==================== LAST CARD SPECIFIC STYLES ==================== */
+
+/* Direction Indicator */
+.direction-indicator {
+    color: var(--accent-color);
+    font-weight: 500;
+}
+
+/* Pending Draw Indicator */
+.pending-draw {
+    color: var(--danger-color);
+    font-weight: bold;
+    animation: pulse 1s ease-in-out infinite;
+    background: rgba(255, 71, 87, 0.2);
+    padding: 5px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--danger-color);
+}
+
+/* Player Card Count */
+.player-card-count {
+    color: var(--accent-color);
+    font-size: 0.75em;
+    font-weight: 500;
+}
+
+/* Last Card Badge */
+.player-badge.lastcard {
+    background: var(--warning-color);
+    color: var(--bg-dark);
+    animation: pulse 1s ease-in-out infinite;
+}
+
+.player-badge.bot {
+    background: var(--accent-color);
+    color: var(--bg-dark);
+}
+
+/* Player Box Last Card State */
+.player-box.last-card {
+    border-color: var(--warning-color);
+    box-shadow: 0 0 20px rgba(255, 165, 2, 0.4);
+}
+
+/* Side Panel Last Card Called State */
+.game-player-item.last-card-called {
+    background: rgba(255, 165, 2, 0.15);
+    border-left-color: var(--warning-color);
+}
+
+/* More Cards Indicator */
+.more-cards {
+    color: var(--text-secondary);
+    font-size: 0.75em;
+    margin-left: 5px;
+}
+
+/* Last Card Button */
+.lastcard-btn {
+    background: linear-gradient(135deg, var(--warning-color), #ff8800);
+    color: var(--bg-dark);
+    animation: lastCardGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes lastCardGlow {
+    0%, 100% { box-shadow: 0 0 10px rgba(255, 165, 2, 0.5); }
+    50% { box-shadow: 0 0 25px rgba(255, 165, 2, 0.8), 0 0 40px rgba(255, 165, 2, 0.4); }
+}
+
+/* Draw Button */
+.draw-btn {
+    background: linear-gradient(135deg, var(--accent-color), #00a0cc);
+    color: var(--bg-dark);
+}
+
+/* Play Button */
+.play-btn {
+    background: linear-gradient(135deg, var(--success-color), #00cc70);
+    color: var(--bg-dark);
+}
+
+.play-btn:disabled {
+    background: linear-gradient(135deg, #555, #444);
+    color: #999;
+}
+
+/* Rules Panel */
+.rules-panel {
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rule-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.rule-card {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(145deg, #ffffff, #f0f0f0);
+    color: #2c3e50;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9em;
+    flex-shrink: 0;
+}
+
+.rule-desc {
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+/* Suit Selector Modal */
+.suit-selector {
+    padding: 30px;
+    text-align: center;
+    max-width: 400px;
+}
+
+.suit-selector h3 {
+    color: var(--primary-color);
+    margin-bottom: 25px;
+    font-size: 1.3em;
+}
+
+.suit-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+}
+
+.suit-btn {
+    padding: 20px;
+    border: 2px solid var(--glass-border);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text-primary);
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.suit-btn:hover {
+    transform: scale(1.05);
+    border-color: var(--primary-color);
+}
+
+.suit-btn .suit-hearts,
+.suit-btn .suit-diamonds {
+    color: #e74c3c;
+    font-size: 1.5em;
+}
+
+.suit-btn .suit-clubs,
+.suit-btn .suit-spades {
+    color: #ecf0f1;
+    font-size: 1.5em;
+}
+
+/* Game Over Panel */
+.hand-complete-panel {
+    text-align: center;
+    padding: 25px;
+}
+
+/* Responsive Adjustments for Last Card */
+@media (max-width: 768px) {
+    .piles-container {
+        gap: 20px;
+        padding: 15px;
+    }
+
+    .my-cards .card {
+        width: 55px;
+        height: 80px;
+    }
+
+    .my-cards .card .rank { font-size: 1.2em; }
+    .my-cards .card .suit { font-size: 1.4em; }
+
+    .suit-options {
+        grid-template-columns: 1fr;
+    }
 }

@@ -1,243 +1,201 @@
+"""
+AI Player for Last Card / Crazy Eights
+"""
 import random
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from .player import Player
 from .card import Card
-from .poker_hand import PokerHandEvaluator, HandRank
 
 
 class AIPlayer(Player):
-    def __init__(self, name: str, chips: int = 1000, difficulty: str = "medium"):
-        super().__init__(name, chips, is_human=False)
+    """AI player for Last Card game."""
+
+    def __init__(self, name: str, difficulty: str = "medium"):
+        super().__init__(name, is_human=False)
         self.difficulty = difficulty  # easy, medium, hard
 
-    def decide_action(self, game_state: Dict) -> Tuple[str, int]:
+    def decide_action(self, game_state: Dict) -> Tuple[str, Optional[int], Optional[str]]:
         """
         Decide what action to take based on game state.
-        Returns: (action, amount)
+        Returns: (action, card_index, suit_override)
         """
         valid_actions = game_state.get("valid_actions", [])
+        playable_cards = game_state.get("playable_cards", [])
+        pending_draw = game_state.get("pending_draw", 0)
+
         if not valid_actions:
-            return ("check", 0)
+            return ("draw_card", None, None)
 
-        # Get hand strength
-        hand_strength = self._evaluate_hand_strength(game_state)
-        pot_odds = self._calculate_pot_odds(game_state)
-        position_factor = self._get_position_factor(game_state)
+        # First, check if we should call Last Card
+        if len(self.hand) == 2 and not self.last_card_called and 'call_last_card' in valid_actions:
+            # AI should call last card before playing
+            return ("call_last_card", None, None)
 
-        # Adjust strength based on difficulty
+        # If we must draw due to 2s, draw unless we have a 2
+        if pending_draw > 0:
+            twos = [i for i in playable_cards if self.hand[i].rank == '2']
+            if twos:
+                return self._play_card(twos[0], game_state)
+            else:
+                return ("draw_card", None, None)
+
+        # If we can play a card, decide which one
+        if playable_cards and 'play_card' in valid_actions:
+            card_index = self._choose_card_to_play(playable_cards, game_state)
+            return self._play_card(card_index, game_state)
+
+        # Otherwise, draw
+        return ("draw_card", None, None)
+
+    def _choose_card_to_play(self, playable_cards: List[int], game_state: Dict) -> int:
+        """Choose the best card to play from playable options."""
+
         if self.difficulty == "easy":
-            hand_strength *= random.uniform(0.7, 1.0)
-        elif self.difficulty == "hard":
-            hand_strength = hand_strength * 0.9 + position_factor * 0.1
+            # Easy AI plays randomly
+            return random.choice(playable_cards)
 
-        # Make decision
-        return self._make_decision(valid_actions, hand_strength, pot_odds, game_state)
-
-    def _evaluate_hand_strength(self, game_state: Dict) -> float:
-        """
-        Evaluate current hand strength on a scale of 0-1.
-        """
-        community_cards = self._parse_cards(game_state.get("community_cards", []))
-
-        if not community_cards:
-            # Pre-flop: evaluate hole cards
-            return self._preflop_strength()
-        else:
-            # Post-flop: evaluate actual hand
-            all_cards = self.hand + community_cards
-            if len(all_cards) >= 5:
-                _, rank, _, _ = PokerHandEvaluator.best_hand(all_cards)
-                return self._rank_to_strength(rank)
-            return self._preflop_strength()
-
-    def _preflop_strength(self) -> float:
-        """
-        Evaluate pre-flop hand strength.
-        """
-        if len(self.hand) < 2:
-            return 0.3
-
-        card1, card2 = self.hand[0], self.hand[1]
-        v1, v2 = card1.value, card2.value
-        suited = card1.suit == card2.suit
-
-        # Premium hands
-        if v1 == v2:  # Pair
-            if v1 >= 12:  # QQ+
-                return 0.95
-            elif v1 >= 9:  # 99-JJ
-                return 0.85
-            else:
-                return 0.65 + (v1 / 14) * 0.15
-
-        high = max(v1, v2)
-        low = min(v1, v2)
-        gap = high - low
-
-        # High cards
-        if high == 14:  # Ace
-            if low >= 12:  # AK, AQ
-                return 0.88 if suited else 0.85
-            elif low >= 10:  # AJ, AT
-                return 0.75 if suited else 0.70
-            else:
-                return 0.55 if suited else 0.45
-
-        if high == 13:  # King
-            if low >= 11:  # KQ, KJ
-                return 0.70 if suited else 0.65
-            elif low >= 9:
-                return 0.55 if suited else 0.50
-
-        # Suited connectors
-        if suited and gap == 1 and low >= 6:
-            return 0.55
-
-        # Connected cards
-        if gap == 1 and low >= 8:
-            return 0.45
-
-        # Suited
-        if suited and high >= 10:
-            return 0.40
-
-        return 0.25 + (high / 14) * 0.1
-
-    def _rank_to_strength(self, rank: int) -> float:
-        """Convert hand rank to strength 0-1."""
-        strength_map = {
-            HandRank.HIGH_CARD: 0.20,
-            HandRank.ONE_PAIR: 0.45,
-            HandRank.TWO_PAIR: 0.65,
-            HandRank.THREE_OF_A_KIND: 0.75,
-            HandRank.STRAIGHT: 0.80,
-            HandRank.FLUSH: 0.85,
-            HandRank.FULL_HOUSE: 0.90,
-            HandRank.FOUR_OF_A_KIND: 0.97,
-            HandRank.STRAIGHT_FLUSH: 0.99,
-            HandRank.ROYAL_FLUSH: 1.0
+        # Categorize cards
+        special_cards = {
+            '2': [],   # Draw 2 - offensive
+            'J': [],   # Skip - offensive
+            'A': [],   # Reverse
+            '8': [],   # Wild - save for emergencies
         }
-        return strength_map.get(rank, 0.2)
+        normal_cards = []
 
-    def _calculate_pot_odds(self, game_state: Dict) -> float:
-        """Calculate pot odds."""
-        pot = game_state.get("pot", 0)
-        current_bet = game_state.get("current_bet", 0)
-        call_amount = current_bet - self.current_bet
+        for i in playable_cards:
+            card = self.hand[i]
+            if card.rank in special_cards:
+                special_cards[card.rank].append(i)
+            else:
+                normal_cards.append(i)
 
-        if call_amount <= 0:
-            return 1.0
-
-        if pot + call_amount == 0:
-            return 0.5
-
-        return pot / (pot + call_amount)
-
-    def _get_position_factor(self, game_state: Dict) -> float:
-        """Get position advantage (late position = higher factor)."""
-        players = game_state.get("players", [])
-        dealer_pos = game_state.get("dealer_position", 0)
-        my_pos = self.seat_position
-        num_players = len(players)
-
-        if num_players <= 1:
-            return 0.5
-
-        # Calculate relative position from dealer (0 = dealer, highest = early)
-        relative_pos = (my_pos - dealer_pos) % num_players
-        return relative_pos / num_players
-
-    def _make_decision(self, valid_actions: List[Dict], strength: float,
-                       pot_odds: float, game_state: Dict) -> Tuple[str, int]:
-        """Make final decision based on calculations."""
-        actions_map = {a["action"]: a for a in valid_actions}
-        current_bet = game_state.get("current_bet", 0)
-        pot = game_state.get("pot", 0)
-
-        # Add randomness for unpredictability
-        bluff_factor = random.random()
+        # Strategy based on difficulty
         if self.difficulty == "hard":
-            bluff_threshold = 0.15
-        elif self.difficulty == "medium":
-            bluff_threshold = 0.08
+            return self._hard_ai_choice(special_cards, normal_cards, game_state)
         else:
-            bluff_threshold = 0.03
+            return self._medium_ai_choice(special_cards, normal_cards, game_state)
 
-        # Strong hand
-        if strength >= 0.75:
-            if "raise" in actions_map:
-                raise_info = actions_map["raise"]
-                raise_amount = self._calculate_raise_amount(raise_info, pot, strength)
-                return ("raise", raise_amount)
-            elif "call" in actions_map:
-                return ("call", 0)
-            return ("check", 0)
+    def _medium_ai_choice(self, special_cards: Dict, normal_cards: List[int], game_state: Dict) -> int:
+        """Medium difficulty AI card selection."""
 
-        # Medium hand
-        elif strength >= 0.45:
-            call_amount = actions_map.get("call", {}).get("amount", 0)
+        # If few cards left, prioritize getting rid of non-wilds
+        if len(self.hand) <= 3:
+            # Play normal cards first to save specials
+            if normal_cards:
+                return random.choice(normal_cards)
+            # Play offensive cards
+            for rank in ['2', 'J', 'A']:
+                if special_cards[rank]:
+                    return special_cards[rank][0]
 
-            # Good pot odds
-            if pot_odds >= strength or call_amount == 0:
-                if "check" in actions_map:
-                    # Sometimes bet with medium hands
-                    if random.random() < 0.3 and "raise" in actions_map:
-                        raise_info = actions_map["raise"]
-                        return ("raise", raise_info["min"])
-                    return ("check", 0)
-                return ("call", 0)
+        # Play offensive cards (2s, Jacks) when others have few cards
+        players = game_state.get('players', [])
+        opponent_low_cards = any(p['card_count'] <= 3 for p in players if p['name'] != self.name)
 
-            # Bad pot odds but not too expensive
-            if call_amount <= self.chips * 0.15:
-                return ("call", 0)
+        if opponent_low_cards:
+            # Attack with 2s or skips
+            if special_cards['2']:
+                return special_cards['2'][0]
+            if special_cards['J']:
+                return special_cards['J'][0]
 
-            return ("fold", 0)
+        # Normal play - prefer normal cards, save wilds
+        if normal_cards:
+            return random.choice(normal_cards)
 
-        # Weak hand
-        else:
-            # Check if possible
-            if "check" in actions_map:
-                # Occasional bluff
-                if bluff_factor < bluff_threshold and "raise" in actions_map:
-                    raise_info = actions_map["raise"]
-                    return ("raise", raise_info["min"])
-                return ("check", 0)
+        # Play reverses/skips
+        for rank in ['A', 'J', '2']:
+            if special_cards[rank]:
+                return special_cards[rank][0]
 
-            # Consider calling small bets
-            call_amount = actions_map.get("call", {}).get("amount", 0)
-            if call_amount <= self.chips * 0.05 and pot_odds > 0.7:
-                return ("call", 0)
+        # Last resort: play wild 8
+        if special_cards['8']:
+            return special_cards['8'][0]
 
-            return ("fold", 0)
+        # Fallback
+        return random.choice([i for cards in special_cards.values() for i in cards] + normal_cards)
 
-    def _calculate_raise_amount(self, raise_info: Dict, pot: int, strength: float) -> int:
-        """Calculate optimal raise amount."""
-        min_raise = raise_info.get("min", 0)
-        max_raise = raise_info.get("max", min_raise)
+    def _hard_ai_choice(self, special_cards: Dict, normal_cards: List[int], game_state: Dict) -> int:
+        """Hard difficulty AI card selection - smarter strategy."""
 
-        if self.difficulty == "easy":
-            # Easy AI just min raises
-            return min_raise
+        players = game_state.get('players', [])
+        current_suit = game_state.get('current_suit', '')
 
-        # Value bet sizing based on strength
-        if strength >= 0.9:
-            # Very strong: bet big
-            target = min(int(pot * 0.8), max_raise)
-        elif strength >= 0.75:
-            # Strong: bet 50-60% pot
-            target = min(int(pot * 0.6), max_raise)
-        else:
-            # Medium: smaller bet
-            target = min(int(pot * 0.4), max_raise)
+        # Count suits in hand
+        suit_counts = {}
+        for card in self.hand:
+            suit_counts[card.suit] = suit_counts.get(card.suit, 0) + 1
 
-        return max(min_raise, target)
+        # Find most common suit
+        most_common_suit = max(suit_counts.keys(), key=lambda s: suit_counts[s]) if suit_counts else None
 
-    def _parse_cards(self, card_dicts: List[Dict]) -> List[Card]:
-        """Convert card dictionaries to Card objects."""
-        cards = []
-        for cd in card_dicts:
-            if isinstance(cd, dict):
-                cards.append(Card(cd["rank"], cd["suit"]))
-            elif isinstance(cd, Card):
-                cards.append(cd)
-        return cards
+        # Check if next player has few cards
+        my_index = next((i for i, p in enumerate(players) if p['name'] == self.name), 0)
+        direction = game_state.get('direction', 1)
+        next_index = (my_index + direction) % len(players)
+        next_player = players[next_index] if players else None
+        next_has_few = next_player and next_player['card_count'] <= 2
+
+        # If next player has few cards, attack!
+        if next_has_few:
+            if special_cards['2']:
+                return special_cards['2'][0]
+            if special_cards['J']:
+                return special_cards['J'][0]
+
+        # If we have few cards, play safe
+        if len(self.hand) <= 2:
+            # Avoid playing wilds if we have other options
+            if normal_cards:
+                # Play card that matches our most common suit
+                matching = [i for i in normal_cards if self.hand[i].suit == most_common_suit]
+                if matching:
+                    return matching[0]
+                return normal_cards[0]
+
+        # Try to change to our most common suit
+        if most_common_suit and most_common_suit != current_suit:
+            # Look for cards that change to our suit
+            suit_changers = [i for i in normal_cards if self.hand[i].suit == most_common_suit]
+            if suit_changers:
+                return suit_changers[0]
+
+        # Play normal cards
+        if normal_cards:
+            return random.choice(normal_cards)
+
+        # Play non-wild specials
+        for rank in ['A', 'J', '2']:
+            if special_cards[rank]:
+                return special_cards[rank][0]
+
+        # Last resort: wild
+        if special_cards['8']:
+            return special_cards['8'][0]
+
+        return normal_cards[0] if normal_cards else list(special_cards.values())[0][0]
+
+    def _play_card(self, card_index: int, game_state: Dict) -> Tuple[str, int, Optional[str]]:
+        """Return play action with optional suit override for wilds."""
+        card = self.hand[card_index]
+
+        # If playing a wild 8, choose the suit we have most of
+        if card.rank == '8':
+            suit_override = self._choose_wild_suit()
+            return ("play_card", card_index, suit_override)
+
+        return ("play_card", card_index, None)
+
+    def _choose_wild_suit(self) -> str:
+        """Choose suit for wild 8 - pick the one we have most of."""
+        suit_counts = {}
+        for card in self.hand:
+            if card.rank != '8':  # Don't count other wilds
+                suit_counts[card.suit] = suit_counts.get(card.suit, 0) + 1
+
+        if suit_counts:
+            return max(suit_counts.keys(), key=lambda s: suit_counts[s])
+
+        # If only wilds left, pick randomly
+        return random.choice(['hearts', 'diamonds', 'clubs', 'spades'])
