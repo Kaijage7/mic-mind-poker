@@ -619,12 +619,8 @@ input[type="text"]::placeholder {
     color: var(--text-secondary);
 }
 
-.game-info strong, .hand-number, .blinds-info {
+.game-info strong, .round-number {
     color: var(--primary-color);
-}
-
-.tournament-info {
-    color: var(--accent-color) !important;
 }
 
 .top-actions {
@@ -672,21 +668,21 @@ input[type="text"]::placeholder {
 .poker-table {
     position: relative;
     width: 100%;
-    max-width: 750px;
+    max-width: 650px;
     aspect-ratio: 1;
-    background: #ffffff;
+    background: linear-gradient(145deg, #0d5c0d, #0a4a0a);
     border-radius: 20px;
-    border: 8px solid #1a1a1a;
+    border: 8px solid #5c3d2e;
     box-shadow:
-        0 0 0 4px #333333,
-        0 0 0 8px #1a1a1a,
+        0 0 0 4px #8b4513,
+        0 0 0 8px #5c3d2e,
         0 15px 40px rgba(0,0,0,0.35);
 }
 
 .table-pattern {
     position: absolute;
     inset: 20px;
-    border: 3px solid #2a2a2a;
+    border: 3px solid rgba(255, 215, 0, 0.2);
     border-radius: 15px;
     pointer-events: none;
 }
@@ -723,20 +719,20 @@ input[type="text"]::placeholder {
 }
 
 /* Bottom center - main player */
-.seat-0 { top: 105%; left: 50%; }
+.seat-0 { top: 100%; left: 50%; }
 
 /* Left side players (top to bottom) */
-.seat-1 { top: 15%; left: -10%; }
-.seat-2 { top: 50%; left: -12%; }
-.seat-3 { top: 85%; left: -10%; }
+.seat-1 { top: 20%; left: -15%; }
+.seat-2 { top: 50%; left: -18%; }
+.seat-3 { top: 80%; left: -15%; }
 
 /* Right side players (top to bottom) */
-.seat-4 { top: 15%; left: 110%; }
-.seat-5 { top: 50%; left: 112%; }
-.seat-6 { top: 85%; left: 110%; }
+.seat-4 { top: 20%; left: 115%; }
+.seat-5 { top: 50%; left: 118%; }
+.seat-6 { top: 80%; left: 115%; }
 
 /* Top center */
-.seat-7 { top: -5%; left: 50%; }
+.seat-7 { top: 0%; left: 50%; }
 
 .player-box {
     background: linear-gradient(145deg, #1a1a2e, #16213e);
@@ -870,13 +866,13 @@ input[type="text"]::placeholder {
 /* Piles Container - Draw and Discard */
 .piles-container {
     display: flex;
-    gap: 40px;
+    gap: 25px;
     justify-content: center;
     align-items: center;
-    padding: 20px;
-    background: rgba(30, 30, 50, 0.85);
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 15px 20px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 215, 0, 0.2);
 }
 
 .draw-pile, .discard-pile {
