@@ -786,11 +786,21 @@ function updateDiscardPile(state) {
 
     if (state.discard_pile_top) {
         const card = state.discard_pile_top;
+        const oldCard = discardCard.dataset.card;
+        const newCard = `${card.rank}-${card.suit}`;
+
         discardCard.className = `card ${card.suit}`;
         discardCard.innerHTML = `
             <span class="rank">${card.rank}</span>
             <span class="suit">${SUIT_SYMBOLS[card.suit]}</span>
         `;
+
+        // Trigger animation if card changed
+        if (oldCard !== newCard) {
+            discardCard.classList.add('card-played');
+            discardCard.dataset.card = newCard;
+            setTimeout(() => discardCard.classList.remove('card-played'), 400);
+        }
     }
 
     // Show current suit indicator (especially for wild 8s)
@@ -895,11 +905,13 @@ function updateSidePanelPlayers(players, currentPlayer) {
 function updateMyHand(players) {
     const myPlayer = players.find(p => p.name === GameState.playerName);
     const container = document.getElementById('my-cards');
+    const oldCount = container.children.length;
     container.innerHTML = '';
 
     document.getElementById('my-card-count').textContent = myPlayer?.hand?.length || 0;
 
     if (myPlayer && myPlayer.hand) {
+        const newCount = myPlayer.hand.length;
         myPlayer.hand.forEach((card, index) => {
             const cardEl = createCardElement(card, index);
 
@@ -911,6 +923,12 @@ function updateMyHand(players) {
             // Mark selected card
             if (index === GameState.selectedCardIndex) {
                 cardEl.classList.add('selected');
+            }
+
+            // Animate new cards (if hand grew)
+            if (newCount > oldCount && index >= oldCount) {
+                cardEl.classList.add('card-drawn');
+                setTimeout(() => cardEl.classList.remove('card-drawn'), 300);
             }
 
             // Click to select
