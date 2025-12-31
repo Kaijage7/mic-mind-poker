@@ -44,6 +44,7 @@ const GameState = {
     isHost: false,
     players: [],
     selectedCardIndex: null,
+    selectedCardIndices: [],  // For multi-card selection
     playableCards: []
 };
 
@@ -220,13 +221,19 @@ function handleKeyboard(e) {
             break;
         case ' ':
         case 'enter':
-            if (isMyTurn && GameState.selectedCardIndex !== null) {
+            if (isMyTurn && GameState.selectedCardIndices.length > 0) {
                 e.preventDefault();
                 playSelectedCard();
             }
             break;
         case 'l':
             callLastCard();
+            break;
+        case 'a':
+            // Select all cards of same rank as currently selected
+            if (GameState.selectedCardIndex !== null) {
+                selectAllSameRank(GameState.selectedCardIndex);
+            }
             break;
         case 'arrowleft':
             selectPreviousCard();
@@ -246,6 +253,7 @@ function selectPreviousCard() {
     } else {
         GameState.selectedCardIndex = (GameState.selectedCardIndex - 1 + myPlayer.hand.length) % myPlayer.hand.length;
     }
+    GameState.selectedCardIndices = [GameState.selectedCardIndex];
     updateMyHand(GameState.currentState.players);
 }
 
@@ -258,6 +266,7 @@ function selectNextCard() {
     } else {
         GameState.selectedCardIndex = (GameState.selectedCardIndex + 1) % myPlayer.hand.length;
     }
+    GameState.selectedCardIndices = [GameState.selectedCardIndex];
     updateMyHand(GameState.currentState.players);
 }
 
@@ -392,7 +401,7 @@ function drawCard() {
 }
 
 function playSelectedCard() {
-    if (GameState.selectedCardIndex === null) {
+    if (GameState.selectedCardIndices.length === 0) {
         showNotification('Select a card first!', 'error');
         return;
     }
@@ -405,30 +414,43 @@ function playSelectedCard() {
     const myPlayer = GameState.currentState.players.find(p => p.name === GameState.playerName);
     if (!myPlayer || !myPlayer.hand) return;
 
-    const card = myPlayer.hand[GameState.selectedCardIndex];
-
-    // Check if card is playable
-    if (!GameState.playableCards.includes(GameState.selectedCardIndex)) {
-        showNotification('That card cannot be played!', 'error');
+    // Check if all selected cards are playable
+    const allPlayable = GameState.selectedCardIndices.every(i => GameState.playableCards.includes(i));
+    if (!allPlayable) {
+        showNotification('Some selected cards cannot be played!', 'error');
         SoundManager.play('error');
         return;
     }
 
+    const firstCard = myPlayer.hand[GameState.selectedCardIndices[0]];
+
     // If it's a suit changer (Ace or Joker), show suit selector
-    if (card.rank === 'A' || card.rank === 'Joker') {
+    if (firstCard.rank === 'A' || firstCard.rank === 'Joker') {
         showSuitSelector();
         return;
     }
 
-    // Play the card
-    GameState.socket.emit('play_card', {
-        room_id: GameState.roomId,
-        player_name: GameState.playerName,
-        card_index: GameState.selectedCardIndex,
-        suit_override: null
-    });
+    // Play the card(s)
+    if (GameState.selectedCardIndices.length === 1) {
+        // Single card play
+        GameState.socket.emit('play_card', {
+            room_id: GameState.roomId,
+            player_name: GameState.playerName,
+            card_index: GameState.selectedCardIndices[0],
+            suit_override: null
+        });
+    } else {
+        // Multi-card play
+        GameState.socket.emit('play_cards', {
+            room_id: GameState.roomId,
+            player_name: GameState.playerName,
+            card_indices: GameState.selectedCardIndices,
+            suit_override: null
+        });
+    }
 
     GameState.selectedCardIndex = null;
+    GameState.selectedCardIndices = [];
     SoundManager.play('card_play');
 }
 
@@ -443,14 +465,26 @@ function hideSuitSelector() {
 function selectSuitAndPlay(suit) {
     hideSuitSelector();
 
-    GameState.socket.emit('play_card', {
-        room_id: GameState.roomId,
-        player_name: GameState.playerName,
-        card_index: GameState.selectedCardIndex,
-        suit_override: suit
-    });
+    if (GameState.selectedCardIndices.length === 1) {
+        // Single card play
+        GameState.socket.emit('play_card', {
+            room_id: GameState.roomId,
+            player_name: GameState.playerName,
+            card_index: GameState.selectedCardIndices[0],
+            suit_override: suit
+        });
+    } else {
+        // Multi-card play
+        GameState.socket.emit('play_cards', {
+            room_id: GameState.roomId,
+            player_name: GameState.playerName,
+            card_indices: GameState.selectedCardIndices,
+            suit_override: suit
+        });
+    }
 
     GameState.selectedCardIndex = null;
+    GameState.selectedCardIndices = [];
     SoundManager.play('card_play');
 }
 
@@ -513,7 +547,7 @@ function toggleSound() {
 }
 
 function showHelp() {
-    showNotification('Match rank OR suit. A=Change suit, 2=Draw 2, 7/8=Reverse, J=Free throw, Joker=Draw 6+Change suit. Call Last Card when you have 2 cards!', 'info');
+    showNotification('Match rank OR suit. A=Change suit, 2=Draw 2, 7/8=Reverse, J=Free throw, Joker=Draw 6+Change suit. Double-click or press [A] to select all same-rank cards! Call Last Card when you have 2 cards!', 'info');
 }
 
 // Socket Event Handlers
@@ -676,6 +710,7 @@ function handleGameStarted(state) {
     document.getElementById('lobby').classList.remove('active');
     document.getElementById('game').classList.add('active');
     GameState.selectedCardIndex = null;
+    GameState.selectedCardIndices = [];
     updateGameUI(state);
 }
 
@@ -929,6 +964,14 @@ function updateMyHand(players) {
 
     if (myPlayer && myPlayer.hand) {
         const newCount = myPlayer.hand.length;
+
+        // Find cards of same rank for grouping indicator
+        const rankCounts = {};
+        myPlayer.hand.forEach((card, i) => {
+            if (!rankCounts[card.rank]) rankCounts[card.rank] = [];
+            rankCounts[card.rank].push(i);
+        });
+
         myPlayer.hand.forEach((card, index) => {
             const cardEl = createCardElement(card, index);
 
@@ -937,9 +980,19 @@ function updateMyHand(players) {
                 cardEl.classList.add('playable');
             }
 
-            // Mark selected card
-            if (index === GameState.selectedCardIndex) {
+            // Mark selected cards (multi-selection)
+            if (GameState.selectedCardIndices.includes(index)) {
                 cardEl.classList.add('selected');
+            }
+
+            // Show indicator for cards with same rank (can be played together)
+            if (rankCounts[card.rank].length > 1) {
+                cardEl.classList.add('has-matching');
+                const matchBadge = document.createElement('span');
+                matchBadge.className = 'match-badge';
+                matchBadge.textContent = rankCounts[card.rank].length;
+                matchBadge.title = `${rankCounts[card.rank].length} cards of same rank - Double-click to select all`;
+                cardEl.appendChild(matchBadge);
             }
 
             // Animate new cards (if hand grew)
@@ -948,8 +1001,14 @@ function updateMyHand(players) {
                 setTimeout(() => cardEl.classList.remove('card-drawn'), 300);
             }
 
-            // Click to select
-            cardEl.addEventListener('click', () => selectCard(index));
+            // Click to select (pass event for Ctrl/Shift detection)
+            cardEl.addEventListener('click', (e) => selectCard(index, e));
+
+            // Double-click to select all cards of same rank
+            cardEl.addEventListener('dblclick', (e) => {
+                e.preventDefault();
+                selectAllSameRank(index);
+            });
 
             container.appendChild(cardEl);
         });
@@ -964,21 +1023,87 @@ function updateMyHand(players) {
     }
 }
 
-function selectCard(index) {
-    if (GameState.selectedCardIndex === index) {
-        // Double click to play
+function selectCard(index, event) {
+    const myPlayer = GameState.currentState?.players?.find(p => p.name === GameState.playerName);
+    if (!myPlayer || !myPlayer.hand) return;
+
+    const clickedCard = myPlayer.hand[index];
+
+    // Double click to play
+    if (GameState.selectedCardIndex === index && !event?.ctrlKey && !event?.shiftKey) {
         if (GameState.playableCards.includes(index)) {
             playSelectedCard();
         }
         return;
     }
 
-    GameState.selectedCardIndex = index;
+    // Ctrl+click or Shift+click: Toggle multi-selection for same rank cards
+    if (event?.ctrlKey || event?.shiftKey) {
+        if (GameState.selectedCardIndices.includes(index)) {
+            // Remove from selection
+            GameState.selectedCardIndices = GameState.selectedCardIndices.filter(i => i !== index);
+            if (GameState.selectedCardIndices.length === 0) {
+                GameState.selectedCardIndex = null;
+            } else {
+                GameState.selectedCardIndex = GameState.selectedCardIndices[0];
+            }
+        } else {
+            // Add to selection if same rank as first selected card
+            if (GameState.selectedCardIndices.length === 0) {
+                GameState.selectedCardIndex = index;
+                GameState.selectedCardIndices = [index];
+            } else {
+                const firstSelectedCard = myPlayer.hand[GameState.selectedCardIndices[0]];
+                if (clickedCard.rank === firstSelectedCard.rank) {
+                    GameState.selectedCardIndices.push(index);
+                } else {
+                    // Different rank - start new selection
+                    GameState.selectedCardIndex = index;
+                    GameState.selectedCardIndices = [index];
+                }
+            }
+        }
+    } else {
+        // Regular click - single selection
+        GameState.selectedCardIndex = index;
+        GameState.selectedCardIndices = [index];
+    }
+
     updateMyHand(GameState.currentState.players);
 
     // Update play button state
     const playBtn = document.getElementById('play-btn');
-    playBtn.disabled = !GameState.playableCards.includes(index);
+    const canPlay = GameState.selectedCardIndices.length > 0 &&
+                    GameState.selectedCardIndices.every(i => GameState.playableCards.includes(i));
+    playBtn.disabled = !canPlay;
+
+    SoundManager.play('click');
+}
+
+// Select all cards of the same rank as the clicked card
+function selectAllSameRank(index) {
+    const myPlayer = GameState.currentState?.players?.find(p => p.name === GameState.playerName);
+    if (!myPlayer || !myPlayer.hand) return;
+
+    const clickedCard = myPlayer.hand[index];
+    const sameRankIndices = [];
+
+    myPlayer.hand.forEach((card, i) => {
+        if (card.rank === clickedCard.rank) {
+            sameRankIndices.push(i);
+        }
+    });
+
+    GameState.selectedCardIndex = index;
+    GameState.selectedCardIndices = sameRankIndices;
+
+    updateMyHand(GameState.currentState.players);
+
+    // Update play button state
+    const playBtn = document.getElementById('play-btn');
+    const canPlay = GameState.selectedCardIndices.length > 0 &&
+                    GameState.selectedCardIndices.every(i => GameState.playableCards.includes(i));
+    playBtn.disabled = !canPlay;
 
     SoundManager.play('click');
 }
@@ -1009,10 +1134,19 @@ function updateActionPanel(state) {
     actionButtons.style.display = 'flex';
     waitingMessage.style.display = 'none';
 
-    // Update play button state based on selection
+    // Update play button state based on selection (multi-card support)
     const playBtn = document.getElementById('play-btn');
-    playBtn.disabled = GameState.selectedCardIndex === null ||
-                       !GameState.playableCards.includes(GameState.selectedCardIndex);
+    const canPlay = GameState.selectedCardIndices.length > 0 &&
+                    GameState.selectedCardIndices.every(i => GameState.playableCards.includes(i));
+    playBtn.disabled = !canPlay;
+
+    // Update play button text to show card count
+    const playBtnText = playBtn.querySelector('.btn-text');
+    if (GameState.selectedCardIndices.length > 1) {
+        playBtnText.textContent = `Play ${GameState.selectedCardIndices.length} Cards`;
+    } else {
+        playBtnText.textContent = 'Play Card';
+    }
 
     // Update draw button text if there's pending draw
     const drawBtn = document.getElementById('draw-btn');

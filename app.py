@@ -292,6 +292,46 @@ def handle_play_card(data):
         emit('error', {'message': message})
 
 
+@socketio.on('play_cards')
+def handle_play_cards(data):
+    """Handle playing multiple cards at once (same rank)."""
+    room_id = data.get('room_id', 'default')
+    player_name = data.get('player_name')
+    card_indices = data.get('card_indices', [])
+    suit_override = data.get('suit_override')
+
+    if room_id not in games:
+        emit('error', {'message': 'Game not found'})
+        return
+
+    game = games[room_id]
+
+    current_player = game.get_current_player()
+    if not current_player or current_player.name != player_name:
+        emit('error', {'message': 'Not your turn'})
+        return
+
+    if not card_indices:
+        emit('error', {'message': 'No cards selected'})
+        return
+
+    success, message = game.play_cards(player_name, card_indices, suit_override)
+
+    if success:
+        emit('sound_effect', {'sound': 'card'}, room=room_id)
+        broadcast_game_state(room_id, game)
+
+        if game.phase == GamePhase.GAME_OVER:
+            socketio.emit('game_over', {
+                'winner': game.winner,
+                'message': f'{game.winner} wins!'
+            }, room=room_id)
+        else:
+            check_and_execute_ai_turn(room_id, game)
+    else:
+        emit('error', {'message': message})
+
+
 @socketio.on('draw_card')
 def handle_draw_card(data):
     room_id = data.get('room_id', 'default')
@@ -469,7 +509,17 @@ def check_and_execute_ai_turn(room_id: str, game: LastCardGame):
             state = game.get_game_state(for_player=current_player.name)
             action, card_index, suit_override = current_player.decide_action(state)
 
-        if action == 'play_card' and card_index is not None:
+        if action == 'play_cards' and card_index is not None and isinstance(card_index, list):
+            # Multi-card play
+            success, message = game.play_cards(current_player.name, card_index, suit_override)
+            if success:
+                count = len(card_index)
+                socketio.emit('ai_action', {
+                    'player_name': current_player.name,
+                    'action': f'played {count} cards!'
+                }, room=room_id)
+                socketio.emit('sound_effect', {'sound': 'card'}, room=room_id)
+        elif action == 'play_card' and card_index is not None:
             success, message = game.play_card(current_player.name, card_index, suit_override)
             if success:
                 socketio.emit('ai_action', {

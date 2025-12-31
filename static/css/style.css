@@ -1472,6 +1472,38 @@ input[type="text"]::placeholder {
     filter: grayscale(0.3);
 }
 
+/* Multi-card selection - Badge showing count of same-rank cards */
+.my-cards .card .match-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 22px;
+    height: 22px;
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
+    color: white;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    z-index: 10;
+    cursor: pointer;
+}
+
+.my-cards .card.has-matching:hover .match-badge {
+    background: linear-gradient(135deg, #00d4ff, #0099cc);
+    transform: scale(1.1);
+}
+
+/* Multiple cards selected indicator */
+.my-cards .card.selected.has-matching {
+    border-color: #9b59b6;
+    box-shadow: 0 15px 30px rgba(155, 89, 182, 0.5);
+}
+
 .my-cards .card:not(.playable):hover {
     transform: translateY(-3px);
 }

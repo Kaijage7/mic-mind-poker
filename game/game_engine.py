@@ -175,6 +175,116 @@ class LastCardGame:
                 playable.append(i)
         return playable
 
+    def get_matching_cards(self, player: Player, card_index: int) -> List[int]:
+        """Get indices of all cards with the same rank as the selected card."""
+        if card_index < 0 or card_index >= len(player.hand):
+            return []
+        selected_card = player.hand[card_index]
+        matching = []
+        for i, card in enumerate(player.hand):
+            if card.rank == selected_card.rank:
+                matching.append(i)
+        return matching
+
+    def play_cards(self, player_name: str, card_indices: List[int], suit_override: Optional[str] = None) -> Tuple[bool, str]:
+        """
+        Play multiple cards of the same rank at once.
+
+        Args:
+            player_name: Name of the player
+            card_indices: List of card indices to play (must be same rank)
+            suit_override: Suit choice for Ace/Joker
+
+        Returns:
+            Tuple of (success, message)
+        """
+        if not card_indices:
+            return False, "No cards selected"
+
+        # If only one card, use regular play_card method
+        if len(card_indices) == 1:
+            return self.play_card(player_name, card_indices[0], suit_override)
+
+        player = self._get_player_by_name(player_name)
+        if not player:
+            return False, "Player not found"
+
+        current = self.get_current_player()
+        if not current or current.name != player_name:
+            return False, "Not your turn"
+
+        # Validate all indices
+        for idx in card_indices:
+            if idx < 0 or idx >= len(player.hand):
+                return False, "Invalid card index"
+
+        # Get all cards to be played
+        cards_to_play = [player.hand[i] for i in card_indices]
+
+        # Check that all cards have the same rank
+        first_rank = cards_to_play[0].rank
+        for card in cards_to_play:
+            if card.rank != first_rank:
+                return False, "All cards must be the same rank to play together"
+
+        # Check if the first card is playable
+        if not self.is_valid_play(cards_to_play[0]):
+            return False, f"Cannot play {cards_to_play[0]}. Must match {self.get_active_suit()} or {self.get_top_card().rank}"
+
+        # Check if trying to use special cards as last cards
+        remaining_after = len(player.hand) - len(card_indices)
+        if remaining_after == 0 and first_rank in self.SPECIAL_CARDS:
+            return False, f"Cannot use {first_rank} as your last card!"
+
+        # Check Last Card call (if will have 1 card left)
+        if remaining_after == 1 and not player.last_card_called:
+            self._draw_cards(player, 1)
+            self._log_action(f"{player_name} forgot to call Last Card! Drew 1 penalty card.")
+            player.last_card_called = False
+
+        # Remove cards from hand (in reverse order to maintain indices)
+        sorted_indices = sorted(card_indices, reverse=True)
+        for idx in sorted_indices:
+            player.hand.pop(idx)
+
+        # Add all cards to discard pile
+        for card in cards_to_play:
+            self.discard_pile.append(card)
+
+        self.last_played_by = player_name
+        card_count = len(cards_to_play)
+        self._log_action(f"{player_name} played {card_count}x {first_rank}!")
+
+        # Reset last card called if more than 1 card left
+        if len(player.hand) > 1:
+            player.last_card_called = False
+
+        # Check for win
+        if len(player.hand) == 0:
+            self.winner = player_name
+            self.phase = GamePhase.GAME_OVER
+            self._log_action(f"{player_name} wins!")
+            return True, f"{player_name} wins with {card_count}x {first_rank}!"
+
+        # Apply special effects for each card played
+        played_jack = first_rank == 'J'
+        for i, card in enumerate(cards_to_play):
+            # Only use suit_override on the last card
+            override = suit_override if i == len(cards_to_play) - 1 else None
+            self._apply_special_effects(card, override)
+
+        # Jack = free throw (still applies even with multiple Jacks)
+        if played_jack:
+            self.free_throw_active = True
+            self._log_action(f"{player_name} gets a free throw!")
+            return True, f"Played {card_count}x {first_rank} - Free throw!"
+
+        # Move to next player
+        self.free_throw_active = False
+        self._advance_to_next_player()
+
+        return True, f"Played {card_count}x {first_rank}"
+
     def play_card(self, player_name: str, card_index: int, suit_override: Optional[str] = None) -> Tuple[bool, str]:
         """
         Play a card from the player's hand.
