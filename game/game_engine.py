@@ -15,21 +15,23 @@ class GamePhase(Enum):
 
 class LastCardGame:
     """
-    Last Card / Crazy Eights game implementation.
+    Last Card game implementation (official rules).
 
     Rules:
     - Each player gets 5 cards
     - Match rank OR suit to play a card
     - Special cards:
-      - 8 (wild): Can be played anytime, player chooses next suit
-      - 2: Next player draws 2 cards and skips turn (stackable)
-      - 7: Next player must play a 7 or draw 1 card
-      - Ace: Reverses play direction
-      - Jack: Skips next player
-      - Joker: Wild + next player draws 5 cards
+      - Ace: Change suit (can be played anytime)
+      - 2: Next player draws 2 cards (stackable)
+      - 8: Skip next player
+      - Jack: Free throw (play another card), can be played on any card
+      - Joker: Wild + next player draws 6 cards + change suit
     - First to empty hand wins
     - Must call "Last Card" when at 1 card (penalty: draw 1)
+    - Last Card cannot be a special card (A, 2, 8, J, Joker)
     """
+
+    SPECIAL_CARDS = ['A', '2', '8', 'J', 'Joker']  # Cannot be last card
 
     CARDS_PER_PLAYER = 5
     MAX_PLAYERS = 8
@@ -42,12 +44,12 @@ class LastCardGame:
         self.current_player_index = 0
         self.direction = 1  # 1 = clockwise, -1 = counter-clockwise
         self.pending_draw = 0  # Stacked draw 2s or Joker
-        self.pending_seven = False  # Must play 7 or draw 1
-        self.current_suit: Optional[str] = None  # Override suit from wild 8/Joker
+        self.current_suit: Optional[str] = None  # Override suit from Ace/Joker
         self.winner: Optional[str] = None
         self.action_log: List[str] = []
         self.round_number = 0
         self.last_played_by: Optional[str] = None
+        self.free_throw_active = False  # Jack allows playing another card
 
     def add_player(self, player: Player) -> bool:
         """Add a player to the game."""
@@ -79,10 +81,10 @@ class LastCardGame:
         self.round_number += 1
         self.winner = None
         self.pending_draw = 0
-        self.pending_seven = False
         self.direction = 1
         self.current_suit = None
         self.action_log = []
+        self.free_throw_active = False
 
         # Reset deck and shuffle
         self.deck.reset()
@@ -140,17 +142,21 @@ class LastCardGame:
 
     def is_valid_play(self, card: Card) -> bool:
         """Check if a card can be played."""
-        # Jokers and 8s (wilds) can always be played
-        if card.rank == 'Joker' or card.rank == '8':
+        # Jokers can always be played (wild)
+        if card.rank == 'Joker':
             return True
 
-        # If there are pending draws from 2s, only a 2 can be played (stacking)
+        # Ace can be played anytime (changes suit)
+        if card.rank == 'A':
+            return True
+
+        # Jack can be played on any card (free throw)
+        if card.rank == 'J':
+            return True
+
+        # If there are pending draws from 2s/Joker, only a 2 can be played (stacking)
         if self.pending_draw > 0:
             return card.rank == '2'
-
-        # If there's a pending 7, only a 7 can be played
-        if self.pending_seven:
-            return card.rank == '7'
 
         top_card = self.get_top_card()
         if not top_card:
@@ -197,6 +203,10 @@ class LastCardGame:
         if not self.is_valid_play(card):
             return False, f"Cannot play {card}. Must match {self.get_active_suit()} or {self.get_top_card().rank}"
 
+        # Check if trying to use a special card as last card
+        if len(player.hand) == 1 and card.rank in self.SPECIAL_CARDS:
+            return False, f"Cannot use {card.rank} as your last card! Special cards (A, 2, 8, J, Joker) cannot be last."
+
         # Remove card from hand and add to discard pile
         player.hand.pop(card_index)
         self.discard_pile.append(card)
@@ -223,9 +233,17 @@ class LastCardGame:
             return True, f"{player_name} wins!"
 
         # Apply special card effects
+        played_jack = card.rank == 'J'
         self._apply_special_effects(card, suit_override)
 
-        # Move to next player
+        # Jack = free throw, don't advance to next player
+        if played_jack:
+            self.free_throw_active = True
+            self._log_action(f"{player_name} gets a free throw!")
+            return True, f"Played {card} - Free throw!"
+
+        # Move to next player (unless free throw)
+        self.free_throw_active = False
         self._advance_to_next_player()
 
         return True, f"Played {card}"
@@ -248,8 +266,6 @@ class LastCardGame:
         # Determine draw count
         if self.pending_draw > 0:
             draw_count = self.pending_draw
-        elif self.pending_seven:
-            draw_count = 1  # Seven only makes you draw 1
         else:
             draw_count = 1
 
@@ -258,9 +274,6 @@ class LastCardGame:
         if self.pending_draw > 0:
             self._log_action(f"{player_name} drew {cards_drawn} cards (from 2s/Joker)")
             self.pending_draw = 0
-        elif self.pending_seven:
-            self._log_action(f"{player_name} drew 1 card (from 7)")
-            self.pending_seven = False
         else:
             self._log_action(f"{player_name} drew a card")
 
@@ -299,54 +312,58 @@ class LastCardGame:
         return True, "Last Card called!"
 
     def _apply_special_effects(self, card: Card, suit_override: Optional[str] = None):
-        """Apply special card effects."""
+        """Apply special card effects according to official Last Card rules."""
 
-        # Clear pending seven when any card is played
-        self.pending_seven = False
-
-        # Joker - Wild + next player draws 5
+        # Joker - Wild + next player draws 6 + change suit
         if card.rank == 'Joker':
             if suit_override and suit_override in ['hearts', 'diamonds', 'clubs', 'spades']:
                 self.current_suit = suit_override
                 self._log_action(f"Joker! Suit changed to {suit_override}")
             else:
                 self.current_suit = 'hearts'  # Default suit for Joker
-            self.pending_draw += 5
+            self.pending_draw += 6
             self._log_action(f"Next player must draw {self.pending_draw} cards!")
-            return  # Joker doesn't stack with other effects
+            return  # Joker effect complete
 
-        # Wild 8 - player chooses next suit
-        if card.rank == '8':
+        # Ace - Change suit (can be played anytime)
+        if card.rank == 'A':
             if suit_override and suit_override in ['hearts', 'diamonds', 'clubs', 'spades']:
                 self.current_suit = suit_override
-                self._log_action(f"Suit changed to {suit_override}")
+                self._log_action(f"Ace! Suit changed to {suit_override}")
             else:
                 self.current_suit = card.suit
-        else:
-            self.current_suit = card.suit
+            return  # Ace effect complete
 
-        # Draw 2 (stackable)
+        # Draw 2 (stackable) - "Terrible Two's"
         if card.rank == '2':
             self.pending_draw += 2
             self._log_action(f"Next player must draw {self.pending_draw} or play a 2")
+            self.current_suit = card.suit
+            return
 
-        # Seven - next player must play 7 or draw 1
+        # Seven - Reverse direction (can be countered by another 7)
         if card.rank == '7':
-            self.pending_seven = True
-            self._log_action(f"Next player must play a 7 or draw 1 card")
-
-        # Reverse (Ace)
-        if card.rank == 'A':
+            self.current_suit = card.suit
             self.direction *= -1
             direction_name = "clockwise" if self.direction == 1 else "counter-clockwise"
-            self._log_action(f"Direction reversed to {direction_name}")
+            self._log_action(f"Direction reversed to {direction_name}!")
+            return
 
-        # Skip (Jack)
+        # Eight - Reverse direction (can be countered by another 8)
+        if card.rank == '8':
+            self.current_suit = card.suit
+            self.direction *= -1
+            direction_name = "clockwise" if self.direction == 1 else "counter-clockwise"
+            self._log_action(f"Direction reversed to {direction_name}!")
+            return
+
+        # Jack - Free throw (handled in play_card, but set suit here)
         if card.rank == 'J':
-            self._advance_to_next_player()
-            skipped = self.get_current_player()
-            if skipped:
-                self._log_action(f"{skipped.name} was skipped!")
+            self.current_suit = card.suit
+            return
+
+        # Normal cards - just update suit
+        self.current_suit = card.suit
 
     def _advance_to_next_player(self):
         """Move to the next player in the current direction."""
@@ -463,7 +480,7 @@ class LastCardGame:
             'draw_pile_count': len(self.deck.cards),
             'direction': self.direction,
             'pending_draw': self.pending_draw,
-            'pending_seven': self.pending_seven,
+            'free_throw_active': self.free_throw_active,
             'current_player': current_player.name if current_player else None,
             'players': players_data,
             'winner': self.winner,

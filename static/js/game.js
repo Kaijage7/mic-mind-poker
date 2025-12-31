@@ -414,8 +414,8 @@ function playSelectedCard() {
         return;
     }
 
-    // If it's a wild card (8 or Joker), show suit selector
-    if (card.rank === '8' || card.rank === 'Joker') {
+    // If it's a suit changer (Ace or Joker), show suit selector
+    if (card.rank === 'A' || card.rank === 'Joker') {
         showSuitSelector();
         return;
     }
@@ -513,7 +513,7 @@ function toggleSound() {
 }
 
 function showHelp() {
-    showNotification('Match rank OR suit. Joker=Wild+Draw5, 8=Wild, 2=Draw2, 7=Play7orDraw1, A=Reverse, J=Skip. Call Last Card before your final card!', 'info');
+    showNotification('Match rank OR suit. A=Change suit, 2=Draw 2, 7/8=Reverse, J=Free throw, Joker=Draw 6+Change suit. Call Last Card when you have 2 cards!', 'info');
 }
 
 // Socket Event Handlers

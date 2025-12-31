@@ -26,8 +26,6 @@ class AIPlayer(Player):
         if not valid_actions:
             return ("draw_card", None, None)
 
-        pending_seven = game_state.get("pending_seven", False)
-
         # First, check if we should call Last Card
         if len(self.hand) == 2 and not self.last_card_called and 'call_last_card' in valid_actions:
             # AI should call last card before playing
@@ -38,14 +36,6 @@ class AIPlayer(Player):
             twos = [i for i in playable_cards if self.hand[i].rank == '2']
             if twos:
                 return self._play_card(twos[0], game_state)
-            else:
-                return ("draw_card", None, None)
-
-        # If we must play a 7 or draw
-        if pending_seven:
-            sevens = [i for i in playable_cards if self.hand[i].rank == '7']
-            if sevens:
-                return self._play_card(sevens[0], game_state)
             else:
                 return ("draw_card", None, None)
 
@@ -64,14 +54,14 @@ class AIPlayer(Player):
             # Easy AI plays randomly
             return random.choice(playable_cards)
 
-        # Categorize cards
+        # Categorize cards based on official Last Card rules
         special_cards = {
-            'Joker': [],  # Wild + draw 5 - most powerful
-            '2': [],      # Draw 2 - offensive
-            '7': [],      # Seven - forces 7 or draw 1
-            'J': [],      # Skip - offensive
-            'A': [],      # Reverse
-            '8': [],      # Wild - save for emergencies
+            'Joker': [],  # Wild + draw 6 - most powerful
+            '2': [],      # Draw 2 - offensive (stackable)
+            'A': [],      # Change suit - wild-like
+            'J': [],      # Free throw - play another card
+            '7': [],      # Reverse direction
+            '8': [],      # Reverse direction
         }
         normal_cards = []
 
@@ -206,8 +196,8 @@ class AIPlayer(Player):
         """Return play action with optional suit override for wilds."""
         card = self.hand[card_index]
 
-        # If playing a wild 8 or Joker, choose the suit we have most of
-        if card.rank == '8' or card.rank == 'Joker':
+        # If playing Ace or Joker (suit changers), choose the suit we have most of
+        if card.rank == 'A' or card.rank == 'Joker':
             suit_override = self._choose_wild_suit()
             return ("play_card", card_index, suit_override)
 
@@ -217,12 +207,12 @@ class AIPlayer(Player):
         """Choose suit for wild card - pick the one we have most of."""
         suit_counts = {}
         for card in self.hand:
-            # Don't count other wilds (8s and Jokers)
-            if card.rank != '8' and card.rank != 'Joker':
+            # Don't count other suit changers (Aces and Jokers)
+            if card.rank != 'A' and card.rank != 'Joker':
                 suit_counts[card.suit] = suit_counts.get(card.suit, 0) + 1
 
         if suit_counts:
             return max(suit_counts.keys(), key=lambda s: suit_counts[s])
 
-        # If only wilds left, pick randomly
+        # If only suit changers left, pick randomly
         return random.choice(['hearts', 'diamonds', 'clubs', 'spades'])
