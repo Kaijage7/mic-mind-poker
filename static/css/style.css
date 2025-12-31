@@ -1504,6 +1504,33 @@ input[type="text"]::placeholder {
     box-shadow: 0 15px 30px rgba(155, 89, 182, 0.5);
 }
 
+/* Combo-eligible cards (can be added to current selection) */
+.my-cards .card.combo-eligible {
+    border: 2px dashed #9b59b6;
+    opacity: 1 !important;
+    filter: none !important;
+}
+
+.my-cards .card.combo-eligible:hover {
+    transform: translateY(-8px);
+    border-color: #00d4ff;
+    box-shadow: 0 8px 20px rgba(155, 89, 182, 0.4);
+}
+
+/* Combo card indicator (J, Joker, 2) */
+.my-cards .card.combo-card::after {
+    content: '⚡';
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    background: #9b59b6;
+    padding: 2px 5px;
+    border-radius: 8px;
+    opacity: 0.8;
+}
+
 .my-cards .card:not(.playable):hover {
     transform: translateY(-3px);
 }
