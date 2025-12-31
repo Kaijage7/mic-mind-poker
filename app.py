@@ -216,7 +216,8 @@ def handle_join_game(data):
         # Count human players
         human_count = sum(1 for p in game.players if p.is_human)
 
-        emit('player_joined', {
+        # Broadcast player_joined to everyone in room
+        socketio.emit('player_joined', {
             'player_name': player_name,
             'is_human': is_human,
             'player_count': len(game.players),
@@ -227,29 +228,18 @@ def handle_join_game(data):
             'is_host': room_hosts.get(room_id) == player_name
         }, room=room_id)
 
-        # Send chat history
+        # Send chat history to joining player
         emit('chat_history', {'messages': chat_history.get(room_id, [])[-50:]})
 
-        # Send personalized game state to the joining player
+        # Send joined_room to the joining player
         emit('joined_room', {
             'room_id': room_id,
             'player_name': player_name,
             'is_host': room_hosts.get(room_id) == player_name
         })
 
-        # Send game state with host info to the joining player
-        state = game.get_game_state(for_player=player_name)
-        add_host_info_to_state(state, room_id)
-        emit('game_state', state)
-
-        # Also update all other players in the room with the new player list
-        for other_player in game.players:
-            if other_player.name != player_name and other_player.is_human:
-                other_socket = player_to_socket.get(room_id, {}).get(other_player.name)
-                if other_socket:
-                    other_state = game.get_game_state(for_player=other_player.name)
-                    add_host_info_to_state(other_state, room_id)
-                    socketio.emit('game_state', other_state, to=other_socket)
+        # Broadcast updated game state to ALL players in the room
+        broadcast_game_state(room_id, game)
     else:
         emit('error', {'message': 'Game is full (max 8 players)'})
 
@@ -495,8 +485,15 @@ def handle_decline_challenge(data):
 def handle_get_state(data):
     room_id = data.get('room_id', 'default')
     player_name = data.get('player_name')
-    game = get_or_create_game(room_id)
-    emit('game_state', game.get_game_state(for_player=player_name))
+
+    if room_id not in games:
+        emit('error', {'message': 'Room not found'})
+        return
+
+    game = games[room_id]
+    state = game.get_game_state(for_player=player_name)
+    add_host_info_to_state(state, room_id)
+    emit('game_state', state)
 
 
 @socketio.on('get_stats')
