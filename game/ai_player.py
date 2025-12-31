@@ -28,8 +28,8 @@ class AIPlayer(Player):
         if not valid_actions:
             return ("draw_card", None, None)
 
-        # First, check if we should call Last Card
-        if len(self.hand) == 2 and not self.last_card_called and 'call_last_card' in valid_actions:
+        # First, check if we should call Last Card (with 2-3 cards for multi-card finish)
+        if len(self.hand) in [2, 3] and not self.last_card_called and 'call_last_card' in valid_actions:
             # AI should call last card before playing
             return ("call_last_card", None, None)
 

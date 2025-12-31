@@ -236,8 +236,10 @@ class LastCardGame:
         if remaining_after == 0 and first_rank in self.SPECIAL_CARDS:
             return False, f"Cannot use {first_rank} as your last card!"
 
-        # Check Last Card call (if will have 1 card left)
-        if remaining_after == 1 and not player.last_card_called:
+        # Check Last Card call penalty
+        # Penalty applies if: will have 1 card left OR finishing (0 cards) from 2-3 cards
+        needs_last_card_call = (remaining_after == 1) or (remaining_after == 0 and len(player.hand) in [2, 3])
+        if needs_last_card_call and not player.last_card_called:
             self._draw_cards(player, 1)
             self._log_action(f"{player_name} forgot to call Last Card! Drew 1 penalty card.")
             player.last_card_called = False
@@ -397,8 +399,9 @@ class LastCardGame:
 
     def call_last_card(self, player_name: str) -> Tuple[bool, str]:
         """
-        Call "Last Card!" when player has 2 cards (before playing to get to 1).
-        Must be called BEFORE playing the card that leaves you with 1 card.
+        Call "Last Card!" before playing cards that will leave you with 1 or 0 cards.
+        - With 2 cards: Call before playing 1 (leaves 1) or 2 of same rank (wins)
+        - With 3 cards: Call before playing 3 of same rank (wins)
 
         Returns:
             Tuple of (success, message)
@@ -407,8 +410,9 @@ class LastCardGame:
         if not player:
             return False, "Player not found"
 
-        if len(player.hand) > 2:
-            return False, "Can only call Last Card when you have 2 cards"
+        # Allow calling with 2 or 3 cards (for multi-card finishing plays)
+        if len(player.hand) > 3:
+            return False, "Can only call Last Card when you have 2-3 cards"
 
         if len(player.hand) < 2:
             return False, "Too late to call Last Card"
@@ -544,8 +548,9 @@ class LastCardGame:
         if playable:
             actions.append('play_card')
 
-        # Can call last card if has 2 cards and hasn't called yet
-        if len(player.hand) == 2 and not player.last_card_called:
+        # Can call last card if has 2-3 cards and hasn't called yet
+        # (allows for multi-card finishing plays)
+        if len(player.hand) in [2, 3] and not player.last_card_called:
             actions.append('call_last_card')
 
         return actions

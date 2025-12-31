@@ -492,8 +492,9 @@ function callLastCard() {
     const myPlayer = GameState.currentState?.players?.find(p => p.name === GameState.playerName);
     if (!myPlayer) return;
 
-    if (myPlayer.hand?.length !== 2) {
-        showNotification('You can only call Last Card when you have 2 cards!', 'error');
+    // Allow calling with 2-3 cards (for multi-card finishing plays)
+    if (myPlayer.hand?.length < 2 || myPlayer.hand?.length > 3) {
+        showNotification('You can only call Last Card when you have 2-3 cards!', 'error');
         return;
     }
 
@@ -1013,9 +1014,9 @@ function updateMyHand(players) {
             container.appendChild(cardEl);
         });
 
-        // Show/hide Last Card button
+        // Show/hide Last Card button (show for 2-3 cards for multi-card finishing plays)
         const lastCardBtn = document.getElementById('lastcard-btn');
-        if (myPlayer.hand.length === 2 && !myPlayer.last_card_called) {
+        if ((myPlayer.hand.length === 2 || myPlayer.hand.length === 3) && !myPlayer.last_card_called) {
             lastCardBtn.style.display = 'flex';
         } else {
             lastCardBtn.style.display = 'none';
