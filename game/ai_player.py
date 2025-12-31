@@ -57,17 +57,33 @@ class AIPlayer(Player):
 
     def _choose_cards_to_play(self, playable_cards: List[int], game_state: Dict) -> Tuple[str, Union[int, List[int]], Optional[str]]:
         """
-        Choose the best card(s) to play, potentially multiple of same rank.
+        Choose the best card(s) to play, potentially multiple of same rank or combos.
         Returns: (action, card_index_or_indices, suit_override)
+
+        Valid combos:
+        - Same rank: 2, 3, or 4 cards of same rank
+        - Jack combo: Jack + any other card(s)
+        - Joker + 2: Stack draw effects
         """
         # Easy AI always plays single cards
         if self.difficulty == "easy":
             card_index = random.choice(playable_cards)
             return self._play_card(card_index, game_state)
 
-        # For medium/hard AI, consider multi-card plays
+        # For medium/hard AI, consider combo plays
         card_index = self._choose_card_to_play(playable_cards, game_state)
         chosen_card = self.hand[card_index]
+
+        # Check for Joker + 2 combo opportunity (hard AI)
+        if self.difficulty == "hard":
+            combo_indices = self._find_joker_two_combo(playable_cards)
+            if combo_indices and len(combo_indices) > 1:
+                return self._play_cards(combo_indices, game_state)
+
+            # Check for Jack combo opportunity
+            jack_combo = self._find_jack_combo(playable_cards)
+            if jack_combo and len(jack_combo) > 1:
+                return self._play_cards(jack_combo, game_state)
 
         # Find all matching cards of same rank
         matching_indices = self._get_matching_cards(playable_cards, chosen_card.rank)
@@ -96,6 +112,11 @@ class AIPlayer(Player):
                 # Play multiple normal cards if we have many cards
                 elif len(self.hand) > 5 and chosen_card.rank not in ['A', 'J', 'Joker', '2']:
                     should_play_multiple = True
+                # Medium AI: Sometimes use Jack combo
+                if chosen_card.rank == 'J' and random.random() > 0.5:
+                    jack_combo = self._find_jack_combo(playable_cards)
+                    if jack_combo and len(jack_combo) > 1:
+                        return self._play_cards(jack_combo, game_state)
 
         # Check if playing multiple would leave us with 1 card and it's a special card
         if should_play_multiple:
@@ -119,6 +140,64 @@ class AIPlayer(Player):
             return self._play_cards(matching_indices, game_state)
 
         return self._play_card(card_index, game_state)
+
+    def _find_joker_two_combo(self, playable_cards: List[int]) -> List[int]:
+        """Find Joker + 2 combo cards for maximum draw damage."""
+        jokers = [i for i in range(len(self.hand)) if self.hand[i].rank == 'Joker']
+        twos = [i for i in range(len(self.hand)) if self.hand[i].rank == '2']
+
+        # Only combine if we have at least one Joker (Joker can always be played)
+        if not jokers:
+            return []
+
+        # Combine Jokers and 2s
+        combo = jokers + twos
+
+        # Check remaining cards after combo
+        remaining = len(self.hand) - len(combo)
+        if remaining == 0:
+            # Can't finish with special cards
+            return []
+        if remaining == 1:
+            # Check if remaining card is special
+            for i, card in enumerate(self.hand):
+                if i not in combo:
+                    if card.rank in ['A', '2', '8', 'J', 'Joker']:
+                        return []  # Can't leave special as last
+
+        return combo if len(combo) > 1 else []
+
+    def _find_jack_combo(self, playable_cards: List[int]) -> List[int]:
+        """Find Jack + other cards combo for playing multiple cards."""
+        jacks = [i for i in playable_cards if self.hand[i].rank == 'J']
+        if not jacks:
+            return []
+
+        # Jack can be combined with any other card
+        # Find non-special cards to combine with Jack
+        combo = list(jacks)
+        for i in playable_cards:
+            if i not in combo:
+                card = self.hand[i]
+                # Prefer adding non-special cards
+                if card.rank not in ['A', '2', '8', 'J', 'Joker']:
+                    combo.append(i)
+                    break  # Just add one for Jack combo
+
+        # Check remaining cards
+        remaining = len(self.hand) - len(combo)
+        if remaining == 0:
+            # Check if last card in combo is special
+            last_card = self.hand[combo[-1]]
+            if last_card.rank in ['A', '2', '8', 'J', 'Joker']:
+                return []
+        if remaining == 1:
+            for i, card in enumerate(self.hand):
+                if i not in combo:
+                    if card.rank in ['A', '2', '8', 'J', 'Joker']:
+                        return []
+
+        return combo if len(combo) > 1 else []
 
     def _choose_card_to_play(self, playable_cards: List[int], game_state: Dict) -> int:
         """Choose the best single card to play from playable options."""

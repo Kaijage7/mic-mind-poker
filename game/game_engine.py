@@ -188,11 +188,16 @@ class LastCardGame:
 
     def play_cards(self, player_name: str, card_indices: List[int], suit_override: Optional[str] = None) -> Tuple[bool, str]:
         """
-        Play multiple cards of the same rank at once.
+        Play multiple cards as a combo.
+
+        Valid combos:
+        - Same rank: Play 2, 3, or 4 cards of the same rank
+        - Jack combo: Jack + any other card(s) - Jack triggers free throw
+        - Joker + 2 combo: Stack draw effects (6 per Joker + 2 per Two)
 
         Args:
             player_name: Name of the player
-            card_indices: List of card indices to play (must be same rank)
+            card_indices: List of card indices to play
             suit_override: Suit choice for Ace/Joker
 
         Returns:
@@ -220,24 +225,27 @@ class LastCardGame:
 
         # Get all cards to be played
         cards_to_play = [player.hand[i] for i in card_indices]
+        ranks = [card.rank for card in cards_to_play]
 
-        # Check that all cards have the same rank
-        first_rank = cards_to_play[0].rank
-        for card in cards_to_play:
-            if card.rank != first_rank:
-                return False, "All cards must be the same rank to play together"
+        # Determine combo type
+        combo_type = self._get_combo_type(ranks)
+        if not combo_type:
+            return False, "Invalid combo! Use same rank, Jack+card, or Joker+2"
 
-        # Check if the first card is playable
-        if not self.is_valid_play(cards_to_play[0]):
-            return False, f"Cannot play {cards_to_play[0]}. Must match {self.get_active_suit()} or {self.get_top_card().rank}"
+        # Check if the first card is playable (for the combo to start)
+        first_playable_card = self._get_first_playable_for_combo(cards_to_play, combo_type)
+        if not first_playable_card:
+            return False, f"Cannot play this combo. First card must be playable."
 
         # Check if trying to use special cards as last cards
         remaining_after = len(player.hand) - len(card_indices)
-        if remaining_after == 0 and first_rank in self.SPECIAL_CARDS:
-            return False, f"Cannot use {first_rank} as your last card!"
+        if remaining_after == 0:
+            # Check if any special card would be the "effective" last card
+            last_card = cards_to_play[-1]
+            if last_card.rank in self.SPECIAL_CARDS:
+                return False, f"Cannot use {last_card.rank} as your last card!"
 
         # Check Last Card call penalty
-        # Penalty applies if: will have 1 card left OR finishing (0 cards) from 2-3 cards
         needs_last_card_call = (remaining_after == 1) or (remaining_after == 0 and len(player.hand) in [2, 3])
         if needs_last_card_call and not player.last_card_called:
             self._draw_cards(player, 1)
@@ -255,7 +263,16 @@ class LastCardGame:
 
         self.last_played_by = player_name
         card_count = len(cards_to_play)
-        self._log_action(f"{player_name} played {card_count}x {first_rank}!")
+
+        # Log the combo play
+        if combo_type == 'same_rank':
+            self._log_action(f"{player_name} played {card_count}x {ranks[0]}!")
+        elif combo_type == 'jack_combo':
+            self._log_action(f"{player_name} played Jack combo ({card_count} cards)!")
+        elif combo_type == 'joker_two_combo':
+            joker_count = ranks.count('Joker')
+            two_count = ranks.count('2')
+            self._log_action(f"{player_name} played Joker+2 combo ({joker_count} Jokers, {two_count} Twos)!")
 
         # Reset last card called if more than 1 card left
         if len(player.hand) > 1:
@@ -266,16 +283,75 @@ class LastCardGame:
             self.winner = player_name
             self.phase = GamePhase.GAME_OVER
             self._log_action(f"{player_name} wins!")
-            return True, f"{player_name} wins with {card_count}x {first_rank}!"
+            return True, f"{player_name} wins with combo!"
 
-        # Apply special effects for each card played
+        # Apply combo effects based on type
+        if combo_type == 'same_rank':
+            return self._apply_same_rank_combo(player_name, cards_to_play, suit_override)
+        elif combo_type == 'jack_combo':
+            return self._apply_jack_combo(player_name, cards_to_play, suit_override)
+        elif combo_type == 'joker_two_combo':
+            return self._apply_joker_two_combo(player_name, cards_to_play, suit_override)
+
+        return True, f"Played {card_count} cards"
+
+    def _get_combo_type(self, ranks: List[str]) -> Optional[str]:
+        """Determine the combo type from card ranks."""
+        if not ranks:
+            return None
+
+        # Same rank - all cards have the same rank
+        if all(r == ranks[0] for r in ranks):
+            return 'same_rank'
+
+        # Jack combo - has at least one Jack
+        if 'J' in ranks:
+            return 'jack_combo'
+
+        # Joker + 2 combo - all cards are Joker or 2
+        if all(r in ['Joker', '2'] for r in ranks) and 'Joker' in ranks:
+            return 'joker_two_combo'
+
+        return None
+
+    def _get_first_playable_for_combo(self, cards: List[Card], combo_type: str) -> Optional[Card]:
+        """Find the first card that can be played to start the combo."""
+        # For Jack combo, Jack can always be played
+        if combo_type == 'jack_combo':
+            for card in cards:
+                if card.rank == 'J':
+                    return card
+
+        # For Joker+2 combo, Joker can always be played
+        if combo_type == 'joker_two_combo':
+            for card in cards:
+                if card.rank == 'Joker':
+                    return card
+            # Or 2 if there's pending draw
+            if self.pending_draw > 0:
+                for card in cards:
+                    if card.rank == '2':
+                        return card
+
+        # For same rank, check if any is playable
+        for card in cards:
+            if self.is_valid_play(card):
+                return card
+
+        return None
+
+    def _apply_same_rank_combo(self, player_name: str, cards: List[Card], suit_override: Optional[str]) -> Tuple[bool, str]:
+        """Apply effects for same-rank combo."""
+        first_rank = cards[0].rank
+        card_count = len(cards)
+
+        # Apply special effects for each card
         played_jack = first_rank == 'J'
-        for i, card in enumerate(cards_to_play):
-            # Only use suit_override on the last card
-            override = suit_override if i == len(cards_to_play) - 1 else None
+        for i, card in enumerate(cards):
+            override = suit_override if i == len(cards) - 1 else None
             self._apply_special_effects(card, override)
 
-        # Jack = free throw (still applies even with multiple Jacks)
+        # Jack = free throw
         if played_jack:
             self.free_throw_active = True
             self._log_action(f"{player_name} gets a free throw!")
@@ -286,6 +362,51 @@ class LastCardGame:
         self._advance_to_next_player()
 
         return True, f"Played {card_count}x {first_rank}"
+
+    def _apply_jack_combo(self, player_name: str, cards: List[Card], suit_override: Optional[str]) -> Tuple[bool, str]:
+        """Apply effects for Jack combo (Jack + other cards)."""
+        card_count = len(cards)
+
+        # Count Jacks and other cards
+        jack_count = sum(1 for c in cards if c.rank == 'J')
+        other_cards = [c for c in cards if c.rank != 'J']
+
+        # Apply effects for all cards
+        # Jacks give free throws, but we're playing all at once
+        for i, card in enumerate(cards):
+            override = suit_override if i == len(cards) - 1 else None
+            self._apply_special_effects(card, override)
+
+        # Jack combo ends turn (all cards played at once)
+        self.free_throw_active = False
+        self._advance_to_next_player()
+
+        return True, f"Jack combo! Played {card_count} cards"
+
+    def _apply_joker_two_combo(self, player_name: str, cards: List[Card], suit_override: Optional[str]) -> Tuple[bool, str]:
+        """Apply effects for Joker + 2 combo (stacking draw effects)."""
+        joker_count = sum(1 for c in cards if c.rank == 'Joker')
+        two_count = sum(1 for c in cards if c.rank == '2')
+
+        # Calculate total draw: 6 per Joker + 2 per Two
+        total_draw = (joker_count * 6) + (two_count * 2)
+        self.pending_draw += total_draw
+
+        # Apply suit override from Joker
+        if suit_override and suit_override in ['hearts', 'diamonds', 'clubs', 'spades']:
+            self.current_suit = suit_override
+            self._log_action(f"Suit changed to {suit_override}")
+        else:
+            # Default to hearts if no suit specified
+            self.current_suit = 'hearts'
+
+        self._log_action(f"COMBO! Next player must draw {self.pending_draw} cards or play a 2!")
+
+        # Move to next player
+        self.free_throw_active = False
+        self._advance_to_next_player()
+
+        return True, f"Joker+2 combo! Next player draws {self.pending_draw}"
 
     def play_card(self, player_name: str, card_index: int, suit_override: Optional[str] = None) -> Tuple[bool, str]:
         """

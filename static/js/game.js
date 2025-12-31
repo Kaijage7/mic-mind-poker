@@ -414,18 +414,29 @@ function playSelectedCard() {
     const myPlayer = GameState.currentState.players.find(p => p.name === GameState.playerName);
     if (!myPlayer || !myPlayer.hand) return;
 
-    // Check if all selected cards are playable
-    const allPlayable = GameState.selectedCardIndices.every(i => GameState.playableCards.includes(i));
-    if (!allPlayable) {
-        showNotification('Some selected cards cannot be played!', 'error');
+    // Validate combo if multiple cards selected
+    if (GameState.selectedCardIndices.length > 1) {
+        if (!isValidCombo(myPlayer.hand, GameState.selectedCardIndices)) {
+            showNotification('Invalid combo! Use same rank, Jack+card, or Joker+2', 'error');
+            SoundManager.play('error');
+            return;
+        }
+    }
+
+    // Check if at least first card is playable (combos may include non-playable cards)
+    const firstIndex = GameState.selectedCardIndices[0];
+    const hasPlayableCard = GameState.selectedCardIndices.some(i => GameState.playableCards.includes(i));
+    if (!hasPlayableCard) {
+        showNotification('At least one selected card must be playable!', 'error');
         SoundManager.play('error');
         return;
     }
 
-    const firstCard = myPlayer.hand[GameState.selectedCardIndices[0]];
+    // Check if any card in combo needs suit selector (Ace or Joker)
+    const selectedCards = GameState.selectedCardIndices.map(i => myPlayer.hand[i]);
+    const needsSuitSelector = selectedCards.some(c => c.rank === 'A' || c.rank === 'Joker');
 
-    // If it's a suit changer (Ace or Joker), show suit selector
-    if (firstCard.rank === 'A' || firstCard.rank === 'Joker') {
+    if (needsSuitSelector) {
         showSuitSelector();
         return;
     }
@@ -440,7 +451,7 @@ function playSelectedCard() {
             suit_override: null
         });
     } else {
-        // Multi-card play
+        // Multi-card play (combo)
         GameState.socket.emit('play_cards', {
             room_id: GameState.roomId,
             player_name: GameState.playerName,
@@ -548,7 +559,7 @@ function toggleSound() {
 }
 
 function showHelp() {
-    showNotification('Match rank OR suit. A=Change suit, 2=Draw 2, 7/8=Reverse, J=Free throw, Joker=Draw 6+Change suit. Double-click or press [A] to select all same-rank cards! Call Last Card when you have 2 cards!', 'info');
+    showNotification('Match rank OR suit. A=Change suit, 2=Draw 2, 7/8=Reverse, J=Free throw, Joker=Draw 6+Change suit. COMBOS: Ctrl+click for Jack+card, Joker+2, or same rank! Call Last Card with 2-3 cards!', 'info');
 }
 
 // Socket Event Handlers
@@ -1038,7 +1049,7 @@ function selectCard(index, event) {
         return;
     }
 
-    // Ctrl+click or Shift+click: Toggle multi-selection for same rank cards
+    // Ctrl+click or Shift+click: Toggle multi-selection for combo plays
     if (event?.ctrlKey || event?.shiftKey) {
         if (GameState.selectedCardIndices.includes(index)) {
             // Remove from selection
@@ -1049,18 +1060,17 @@ function selectCard(index, event) {
                 GameState.selectedCardIndex = GameState.selectedCardIndices[0];
             }
         } else {
-            // Add to selection if same rank as first selected card
+            // Add to selection - allow any card for combo plays
             if (GameState.selectedCardIndices.length === 0) {
                 GameState.selectedCardIndex = index;
                 GameState.selectedCardIndices = [index];
             } else {
-                const firstSelectedCard = myPlayer.hand[GameState.selectedCardIndices[0]];
-                if (clickedCard.rank === firstSelectedCard.rank) {
+                // Check if this combo is valid
+                const testIndices = [...GameState.selectedCardIndices, index];
+                if (isValidCombo(myPlayer.hand, testIndices)) {
                     GameState.selectedCardIndices.push(index);
                 } else {
-                    // Different rank - start new selection
-                    GameState.selectedCardIndex = index;
-                    GameState.selectedCardIndices = [index];
+                    showNotification('Invalid combo! Use same rank, Jack+card, or Joker+2', 'error');
                 }
             }
         }
@@ -1074,11 +1084,51 @@ function selectCard(index, event) {
 
     // Update play button state
     const playBtn = document.getElementById('play-btn');
-    const canPlay = GameState.selectedCardIndices.length > 0 &&
-                    GameState.selectedCardIndices.every(i => GameState.playableCards.includes(i));
+    const canPlay = GameState.selectedCardIndices.length > 0 && canPlayCombo(myPlayer.hand);
     playBtn.disabled = !canPlay;
 
     SoundManager.play('click');
+}
+
+// Check if a combo selection is valid
+function isValidCombo(hand, indices) {
+    if (indices.length <= 1) return true;
+
+    const cards = indices.map(i => hand[i]);
+    const ranks = cards.map(c => c.rank);
+
+    // Same rank - always valid
+    if (ranks.every(r => r === ranks[0])) return true;
+
+    // Jack combo - Jack + any cards (free throw allows playing more)
+    if (ranks.includes('J')) return true;
+
+    // Joker + 2 combo - stacking draw effects
+    if (ranks.includes('Joker') && ranks.includes('2')) {
+        // All cards must be Joker or 2
+        if (ranks.every(r => r === 'Joker' || r === '2')) return true;
+    }
+
+    // Joker + Joker
+    if (ranks.every(r => r === 'Joker')) return true;
+
+    return false;
+}
+
+// Check if the current selection can be played
+function canPlayCombo(hand) {
+    if (GameState.selectedCardIndices.length === 0) return false;
+
+    // First card must be playable
+    const firstIndex = GameState.selectedCardIndices[0];
+    if (!GameState.playableCards.includes(firstIndex)) return false;
+
+    // For combos, validate the combo type
+    if (GameState.selectedCardIndices.length > 1) {
+        if (!isValidCombo(hand, GameState.selectedCardIndices)) return false;
+    }
+
+    return true;
 }
 
 // Select all cards of the same rank as the clicked card
@@ -1102,9 +1152,59 @@ function selectAllSameRank(index) {
 
     // Update play button state
     const playBtn = document.getElementById('play-btn');
-    const canPlay = GameState.selectedCardIndices.length > 0 &&
-                    GameState.selectedCardIndices.every(i => GameState.playableCards.includes(i));
-    playBtn.disabled = !canPlay;
+    playBtn.disabled = !canPlayCombo(myPlayer.hand);
+
+    SoundManager.play('click');
+}
+
+// Select combo cards (Jack + others, Joker + 2s)
+function selectComboCards(startIndex) {
+    const myPlayer = GameState.currentState?.players?.find(p => p.name === GameState.playerName);
+    if (!myPlayer || !myPlayer.hand) return;
+
+    const startCard = myPlayer.hand[startIndex];
+    const comboIndices = [startIndex];
+
+    // For Jack - add all Jacks and suggest adding other playable cards
+    if (startCard.rank === 'J') {
+        myPlayer.hand.forEach((card, i) => {
+            if (i !== startIndex && card.rank === 'J') {
+                comboIndices.push(i);
+            }
+        });
+    }
+    // For Joker - add all Jokers and 2s for maximum damage
+    else if (startCard.rank === 'Joker') {
+        myPlayer.hand.forEach((card, i) => {
+            if (i !== startIndex && (card.rank === 'Joker' || card.rank === '2')) {
+                comboIndices.push(i);
+            }
+        });
+    }
+    // For 2 - add all 2s and Jokers
+    else if (startCard.rank === '2') {
+        myPlayer.hand.forEach((card, i) => {
+            if (i !== startIndex && (card.rank === '2' || card.rank === 'Joker')) {
+                comboIndices.push(i);
+            }
+        });
+    }
+    // For other cards - add same rank
+    else {
+        myPlayer.hand.forEach((card, i) => {
+            if (i !== startIndex && card.rank === startCard.rank) {
+                comboIndices.push(i);
+            }
+        });
+    }
+
+    GameState.selectedCardIndex = startIndex;
+    GameState.selectedCardIndices = comboIndices;
+
+    updateMyHand(GameState.currentState.players);
+
+    const playBtn = document.getElementById('play-btn');
+    playBtn.disabled = !canPlayCombo(myPlayer.hand);
 
     SoundManager.play('click');
 }
@@ -1135,16 +1235,40 @@ function updateActionPanel(state) {
     actionButtons.style.display = 'flex';
     waitingMessage.style.display = 'none';
 
-    // Update play button state based on selection (multi-card support)
+    // Get my player's hand for combo checking
+    const myPlayer = state.players.find(p => p.name === GameState.playerName);
+
+    // Update play button state based on selection (combo support)
     const playBtn = document.getElementById('play-btn');
-    const canPlay = GameState.selectedCardIndices.length > 0 &&
-                    GameState.selectedCardIndices.every(i => GameState.playableCards.includes(i));
+    let canPlay = false;
+
+    if (GameState.selectedCardIndices.length > 0 && myPlayer && myPlayer.hand) {
+        // Check if at least one card is playable
+        const hasPlayable = GameState.selectedCardIndices.some(i => GameState.playableCards.includes(i));
+        // Check if combo is valid
+        const validCombo = GameState.selectedCardIndices.length === 1 ||
+                          isValidCombo(myPlayer.hand, GameState.selectedCardIndices);
+        canPlay = hasPlayable && validCombo;
+    }
+
     playBtn.disabled = !canPlay;
 
-    // Update play button text to show card count
+    // Update play button text to show card count and combo type
     const playBtnText = playBtn.querySelector('.btn-text');
-    if (GameState.selectedCardIndices.length > 1) {
-        playBtnText.textContent = `Play ${GameState.selectedCardIndices.length} Cards`;
+    if (GameState.selectedCardIndices.length > 1 && myPlayer && myPlayer.hand) {
+        const cards = GameState.selectedCardIndices.map(i => myPlayer.hand[i]);
+        const ranks = cards.map(c => c.rank);
+
+        // Determine combo type for display
+        if (ranks.every(r => r === ranks[0])) {
+            playBtnText.textContent = `Play ${GameState.selectedCardIndices.length}x ${ranks[0]}`;
+        } else if (ranks.includes('J')) {
+            playBtnText.textContent = 'Play Jack Combo';
+        } else if (ranks.includes('Joker') && ranks.includes('2')) {
+            playBtnText.textContent = 'Play Joker+2 Combo';
+        } else {
+            playBtnText.textContent = `Play ${GameState.selectedCardIndices.length} Cards`;
+        }
     } else {
         playBtnText.textContent = 'Play Card';
     }
