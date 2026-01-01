@@ -241,6 +241,29 @@ function handleKeyboard(e) {
                 selectComboCards(GameState.selectedCardIndex);
             }
             break;
+        case 'j':
+            // Select Jack combo if Jack is selected or find first Jack
+            if (GameState.selectedCardIndex !== null) {
+                const myPlayer = GameState.currentState?.players?.find(p => p.name === GameState.playerName);
+                if (myPlayer && myPlayer.hand) {
+                    const selectedCard = myPlayer.hand[GameState.selectedCardIndex];
+                    if (selectedCard.rank === 'J') {
+                        selectJackCombo(GameState.selectedCardIndex);
+                    } else {
+                        // Find first Jack in hand
+                        const jackIndex = myPlayer.hand.findIndex(c => c.rank === 'J');
+                        if (jackIndex !== -1) selectJackCombo(jackIndex);
+                    }
+                }
+            } else {
+                // No selection, find first Jack
+                const myPlayer = GameState.currentState?.players?.find(p => p.name === GameState.playerName);
+                if (myPlayer && myPlayer.hand) {
+                    const jackIndex = myPlayer.hand.findIndex(c => c.rank === 'J');
+                    if (jackIndex !== -1) selectJackCombo(jackIndex);
+                }
+            }
+            break;
         case 'escape':
             // Clear selection
             GameState.selectedCardIndex = null;
@@ -573,7 +596,7 @@ function toggleSound() {
 }
 
 function showHelp() {
-    showNotification('COMBOS: Ctrl+click or [C] key! Jack+any, Joker+2, same rank. Keys: [A]=same rank, [C]=combo, [D]=draw, [L]=last card, [ESC]=clear. Special: A=suit, 2=+2, 7/8=reverse, J=free throw, Joker=+5', 'info');
+    showNotification('COMBOS: Click the + button on J/Joker/2! Keys: [J]=Jack combo, [A]=same rank, [C]=combo, [D]=draw, [L]=last card. Special: A=suit, 2=+2, 7/8=reverse, J=free throw, Joker=+5', 'info');
 }
 
 // Socket Event Handlers
@@ -1025,13 +1048,44 @@ function updateMyHand(players) {
                 const matchBadge = document.createElement('span');
                 matchBadge.className = 'match-badge';
                 matchBadge.textContent = rankCounts[card.rank].length;
-                matchBadge.title = `${rankCounts[card.rank].length} cards of same rank - Double-click to select all`;
+                matchBadge.title = `Click to select all ${rankCounts[card.rank].length} ${card.rank}s`;
+                // Make badge clickable to select all same rank
+                matchBadge.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectAllSameRank(index);
+                });
                 cardEl.appendChild(matchBadge);
             }
 
             // Show combo indicator for special cards
             if (card.rank === 'J' || card.rank === 'Joker' || card.rank === '2') {
                 cardEl.classList.add('combo-card');
+
+                // Add clickable COMBO badge for Jack cards
+                if (card.rank === 'J') {
+                    const comboBadge = document.createElement('span');
+                    comboBadge.className = 'combo-badge jack-combo';
+                    comboBadge.innerHTML = '+';
+                    comboBadge.title = 'Click to select Jack + another card';
+                    comboBadge.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        selectJackCombo(index);
+                    });
+                    cardEl.appendChild(comboBadge);
+                }
+
+                // Add clickable COMBO badge for Joker/2 cards
+                if (card.rank === 'Joker' || card.rank === '2') {
+                    const comboBadge = document.createElement('span');
+                    comboBadge.className = 'combo-badge draw-combo';
+                    comboBadge.innerHTML = '+';
+                    comboBadge.title = card.rank === 'Joker' ? 'Click to add 2s for combo' : 'Click to add Jokers/2s for combo';
+                    comboBadge.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        selectDrawCombo(index);
+                    });
+                    cardEl.appendChild(comboBadge);
+                }
             }
 
             // Animate new cards (if hand grew)
@@ -1278,6 +1332,91 @@ function selectComboCards(startIndex) {
     const playBtn = document.getElementById('play-btn');
     playBtn.disabled = !canPlayCombo(myPlayer.hand);
 
+    SoundManager.play('click');
+}
+
+// Select Jack + another playable card for combo
+function selectJackCombo(jackIndex) {
+    const myPlayer = GameState.currentState?.players?.find(p => p.name === GameState.playerName);
+    if (!myPlayer || !myPlayer.hand) return;
+
+    const comboIndices = [jackIndex];
+
+    // Find all Jacks first
+    myPlayer.hand.forEach((card, i) => {
+        if (i !== jackIndex && card.rank === 'J') {
+            comboIndices.push(i);
+        }
+    });
+
+    // Find one other non-special card to add (prefer playable ones)
+    let foundOther = false;
+    // First try to find a playable non-special card
+    for (let i = 0; i < myPlayer.hand.length; i++) {
+        const card = myPlayer.hand[i];
+        if (!comboIndices.includes(i) && !['A', '2', '8', 'J', 'Joker'].includes(card.rank)) {
+            if (GameState.playableCards.includes(i)) {
+                comboIndices.push(i);
+                foundOther = true;
+                break;
+            }
+        }
+    }
+
+    // If no playable non-special, try any non-special card
+    if (!foundOther) {
+        for (let i = 0; i < myPlayer.hand.length; i++) {
+            const card = myPlayer.hand[i];
+            if (!comboIndices.includes(i) && !['A', '2', '8', 'J', 'Joker'].includes(card.rank)) {
+                comboIndices.push(i);
+                break;
+            }
+        }
+    }
+
+    GameState.selectedCardIndex = jackIndex;
+    GameState.selectedCardIndices = comboIndices;
+
+    updateMyHand(GameState.currentState.players);
+
+    const playBtn = document.getElementById('play-btn');
+    playBtn.disabled = !canPlayCombo(myPlayer.hand);
+
+    showNotification(`Selected Jack combo: ${comboIndices.length} cards`, 'info');
+    SoundManager.play('click');
+}
+
+// Select Joker + 2s combo for maximum draw damage
+function selectDrawCombo(startIndex) {
+    const myPlayer = GameState.currentState?.players?.find(p => p.name === GameState.playerName);
+    if (!myPlayer || !myPlayer.hand) return;
+
+    const startCard = myPlayer.hand[startIndex];
+    const comboIndices = [startIndex];
+
+    // Add all Jokers and 2s
+    myPlayer.hand.forEach((card, i) => {
+        if (i !== startIndex && (card.rank === 'Joker' || card.rank === '2')) {
+            comboIndices.push(i);
+        }
+    });
+
+    GameState.selectedCardIndex = startIndex;
+    GameState.selectedCardIndices = comboIndices;
+
+    updateMyHand(GameState.currentState.players);
+
+    const playBtn = document.getElementById('play-btn');
+    playBtn.disabled = !canPlayCombo(myPlayer.hand);
+
+    // Calculate total draw
+    let totalDraw = 0;
+    comboIndices.forEach(i => {
+        if (myPlayer.hand[i].rank === 'Joker') totalDraw += 5;
+        if (myPlayer.hand[i].rank === '2') totalDraw += 2;
+    });
+
+    showNotification(`Selected draw combo: +${totalDraw} cards!`, 'info');
     SoundManager.play('click');
 }
 

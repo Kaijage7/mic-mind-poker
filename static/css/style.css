@@ -1531,6 +1531,49 @@ input[type="text"]::placeholder {
     opacity: 0.8;
 }
 
+/* Clickable combo badge on Jack/Joker/2 cards */
+.my-cards .card .combo-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    transition: all 0.2s ease;
+    border: 2px solid white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.my-cards .card .combo-badge.jack-combo {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+}
+
+.my-cards .card .combo-badge.draw-combo {
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
+    color: white;
+}
+
+.my-cards .card .combo-badge:hover {
+    transform: scale(1.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.my-cards .card .combo-badge.jack-combo:hover {
+    background: linear-gradient(135deg, #ff6b6b, #e74c3c);
+}
+
+.my-cards .card .combo-badge.draw-combo:hover {
+    background: linear-gradient(135deg, #a569bd, #9b59b6);
+}
+
 .my-cards .card:not(.playable):hover {
     transform: translateY(-3px);
 }
@@ -1673,6 +1716,84 @@ input[type="text"]::placeholder {
 .action-btn:disabled {
     opacity: 0.3;
     cursor: not-allowed;
+}
+
+/* Instructions Panel */
+.instructions-panel {
+    padding: 12px 20px;
+    margin-top: 10px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.instructions-title {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.instructions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px 15px;
+}
+
+.instruction-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8em;
+    color: var(--text-secondary);
+}
+
+.instruction-icon {
+    font-size: 1.2em;
+    width: 24px;
+    text-align: center;
+}
+
+.instruction-text {
+    flex: 1;
+}
+
+.instruction-text strong {
+    color: var(--text-primary);
+}
+
+.instruction-text kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 0.85em;
+    font-family: monospace;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    color: var(--accent-color);
+    margin: 0 2px;
+}
+
+.instruction-text .badge {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    line-height: 16px;
+    text-align: center;
+    border-radius: 50%;
+    font-size: 0.9em;
+    font-weight: bold;
+    color: white;
+    border: 1px solid white;
+    vertical-align: middle;
+}
+
+.instruction-text .badge.red {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.instruction-text .badge.purple {
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
 }
 
 /* Raise Section */
